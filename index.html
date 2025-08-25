@@ -1,274 +1,609 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="UTF-8">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>ADVENTURE</title>
 <style>
-body { font-family: sans-serif; background:#111; color:#eee; margin:0; padding:0; }
-h1 { font-size: 32px; text-align:center; color:#ffcc00; margin:10px; }
-#stats { font-size: 34px; color:#00ffcc; margin:10px; }
-#game { margin:10px; }
-#log { white-space: pre-line; max-height: 400px; overflow-y: auto; border:1px solid #555; padding:10px; margin:10px; font-size: 34px; color:#eee; }
-button { margin:8px; padding:20px 32px; font-size:30px; min-width:160px; border-radius:6px; background:#333; color:#eee; border:1px solid #666; cursor:pointer; }
-button:hover { background:#444; }
-button:disabled { opacity:0.5; cursor:default; }
+  :root{
+    --accent:#ffcc00; --cyan:#00ffcc; --good:#37ff6b; --bad:#ff4d4d; --info:#9ad1ff; --muted:#bbb;
+    --btn:#333; --btnb:#666; --btnh:#444; --bg:#111; --fg:#eee;
+  }
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--fg);font-family:sans-serif;}
+  h1{font-size:36px;text-align:center;color:var(--accent);margin:12px 8px;}
+  #topbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center;margin:6px 8px;}
+  #stats{font-size:30px;color:var(--cyan);}
+  #enemy{font-size:28px;color:var(--bad);}
+  #controls{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:8px;}
+  #log{white-space:pre-line;max-height:48vh;overflow-y:auto;border:1px solid #555;padding:10px;margin:8px;font-size:30px;}
+  button{margin:4px;padding:18px 26px;font-size:26px;min-width:150px;border-radius:8px;background:var(--btn);color:var(--fg);border:1px solid var(--btnb);cursor:pointer}
+  button:hover{background:var(--btnh);}
+  button:disabled{opacity:.5;cursor:default}
+  .small{font-size:20px;min-width:auto;padding:10px 14px}
+  .flash{animation:flash 450ms ease-in-out 2}
+  @keyframes flash{0%{background:rgba(255,255,255,.0)}50%{background:rgba(255,255,255,.2)}100%{background:rgba(255,255,255,.0)}}
+  .muted{color:var(--muted)}
+  .good{color:var(--good)}
+  .bad{color:var(--bad)}
+  .info{color:var(--info)}
 </style>
 </head>
 <body>
-<h1>ADVENTURE</h1>
-<div id="stats"></div>
-<div id="game"></div>
-<div id="log"></div>
+  <h1>ADVENTURE</h1>
+
+  <div id="topbar">
+    <div id="stats"></div>
+    <div id="enemy"></div>
+    <div id="micStatus" class="muted small"></div>
+  </div>
+
+  <div id="controls"></div>
+  <div id="log"></div>
 
 <script>
-document.addEventListener("DOMContentLoaded", function(){
-
-/* ---------------- Player & Enemy ---------------- */
-let player = {
-  hp:30, maxHp:30, damage:5, xp:0, gold:10, level:1,
-  blocked:false, spells:3, maxSpells:3, skillPoints:0,
-  meleeSkills:[
-    {name:"Quick Slash", threshold:8, dmgMult:0.8},
-    {name:"Precise Stab", threshold:10, dmgMult:1},
-    {name:"Heavy Strike", threshold:12, dmgMult:1.5}
-  ],
-  inventory:[{name:"Health Potion", type:"heal", value:20, count:2}]
+document.addEventListener('DOMContentLoaded', () => {
+/* =============================
+   STATE
+============================= */
+const game = {
+  // risk/reward streak (x1.0, x1.2, x1.4, …)
+  streak: 0,
+  get multiplier(){ return (1 + this.streak * 0.2); },
+  inBattle: false,
+  pendingTurn: false
 };
-let enemy = {};
-let encounterCount = 0;
-let adventureMultiplier = 1;
 
-/* ---------------- Utility Functions ---------------- */
-function updateStats(){
-  document.getElementById('stats').innerHTML =
-    `HP: ${player.hp}/${player.maxHp} | DMG: ${player.damage} | Gold: ${player.gold} | XP: ${player.xp} | Level: ${player.level} | Spells: ${player.spells}/${player.maxSpells} | Multiplier: x${adventureMultiplier}`;
+const player = {
+  hp: 30, maxHp: 30, baseDamage: 5, spellPower: 0,
+  xp: 0, gold: 10, level: 1, skillPoints: 0,
+  blocked: false, spells: 3, maxSpells: 3,
+  buffs: { // durations tick down after each of YOUR turns
+    strength: 0,   // +5 melee damage
+    shield:   0,   // incoming damage halved
+  },
+  meleeSkills: [
+    { name:"Quick Slash",   threshold:8,  mult:0.8,  desc:"You whip your sword in a quick arc." },
+    { name:"Precise Stab",  threshold:10, mult:1.0,  desc:"You lunge for a precise opening."   },
+    { name:"Heavy Strike",  threshold:12, mult:1.5,  desc:"You heave a brutal overhand swing." }
+  ],
+  inventory: [
+    { name:"Health Potion",  type:"heal",   value:25, count:2, desc:"+25 HP" },
+    { name:"Strength Potion",type:"buff",   key:"strength", value:3, count:1, desc:"+5 DMG for 3 turns" },
+    { name:"Shield Potion",  type:"buff",   key:"shield",   value:3, count:1, desc:"Half damage for 3 turns" },
+    { name:"Mana Potion",    type:"mana",   value:2, count:1, desc:"+2 spell charges" }
+  ]
+};
+
+let enemy = null;
+let encountersSinceCamp = 0;
+
+// Progressive camp pricing
+const shop = {
+  weaponCost: 40,
+  armorCost: 40,
+  spellCost: 25,
+  scale(){ this.weaponCost+=10; this.armorCost+=10; this.spellCost+=5; }
+};
+
+/* =============================
+   ENEMIES
+============================= */
+const enemies = [
+  // Low tier
+  {name:'Rat', hp:7, damage:2, xp:2, gold:2, levelMin:1, moves:['scurries to bite','leaps and scratches','gnaws your boot','nibbles viciously','darts and snaps']},
+  {name:'Kobold', hp:9, damage:3, xp:4, gold:4, levelMin:1, moves:['jabs with a spear','flings a pebble','swipes with claws','dashes and slashes','yips and lunges']},
+  {name:'Slime', hp:8, damage:2, xp:3, gold:3, levelMin:1, moves:['slaps with goo','hurls slime','oozes forward','splashes acid','quivers and smacks']},
+  {name:'Thicket Imp', hp:10, damage:3, xp:5, gold:4, levelMin:2, moves:['whips vines','tosses thorns','scratches wildly','shrieks and swipes','spits sap']},
+  {name:'Bandit', hp:12, damage:4, xp:6, gold:6, levelMin:2, moves:['slashes rusty blade','throws a punch','stabs low','feints and cuts','kicks dirt then strikes']},
+  {name:'Skeleton', hp:12, damage:3, xp:6, gold:5, levelMin:2, moves:['slashes bone sword','hurls a rib','clatters and lunges','pokes with femur','rakes with phalanges']},
+  // Mid
+  {name:'Orc', hp:16, damage:6, xp:10, gold:9, levelMin:4, moves:['smashes club','charges headlong','swings fists','roars and strikes','stomps heavily']},
+  {name:'Giant Spider', hp:18, damage:5, xp:12, gold:11, levelMin:4, moves:['lunges and bites','shoots web','slashes legs','spins and strikes','drips venom']},
+  {name:'Wight', hp:18, damage:6, xp:14, gold:12, levelMin:5, moves:['reaches with chill','casts a hex','slashes spectral blade','shrivels your courage','hisses a curse']},
+  // High
+  {name:'Troll', hp:26, damage:8, xp:20, gold:18, levelMin:6, moves:['swings massive fists','stomps the ground','swipes claws','smashes a boulder','crushes with fury']},
+  {name:'Dark Knight', hp:24, damage:7, xp:18, gold:16, levelMin:6, moves:['strikes cursed sword','shield bash','deadly cut','drives forward','lunges from guard']},
+  {name:'Dragon', hp:36, damage:11, xp:28, gold:28, levelMin:6, moves:['breathes fire','swipes claws','lashes tail','roars and dives','rakes with talons']},
+  // Boss
+  {name:'Dragon Lord', hp:60, damage:16, xp:80, gold:80, levelMin:10, moves:['breathes an inferno','rends with claws','smashes with tail','unleashes dark flame','shatters the earth']}
+];
+
+/* =============================
+   UI HELPERS
+============================= */
+const elStats   = document.getElementById('stats');
+const elEnemy   = document.getElementById('enemy');
+const elLog     = document.getElementById('log');
+const elControls= document.getElementById('controls');
+const elMicStat = document.getElementById('micStatus');
+
+function renderStats(){
+  const buffBits = [];
+  if(player.buffs.strength>0) buffBits.push(`STR:+5(${player.buffs.strength})`);
+  if(player.buffs.shield>0)   buffBits.push(`SHIELD(${player.buffs.shield})`);
+  const buffTxt = buffBits.length? ` | Buffs: ${buffBits.join(' ')}`:'';
+  elStats.innerHTML =
+    `HP: ${player.hp}/${player.maxHp} | DMG: ${meleeDamage()} | Gold: ${player.gold} | XP: ${player.xp} | LV: ${player.level} | SP: ${player.spells}/${player.maxSpells} | Mult: x${game.multiplier.toFixed(1)}${buffTxt}`;
 }
 
-function log(msg,color="#eee"){
-  let logDiv = document.getElementById('log');
-  logDiv.innerHTML += `<span style="color:${color}">${msg}</span>\n`;
-  logDiv.scrollTop = logDiv.scrollHeight;
+function renderEnemy(){
+  if(game.inBattle && enemy){
+    elEnemy.textContent = `Enemy: ${enemy.name} — HP: ${Math.max(enemy.hp,0)}`;
+  } else {
+    elEnemy.textContent = '';
+  }
+}
+
+function btn(label, onclick, opts={}) {
+  const b = document.createElement('button');
+  b.textContent = label;
+  if (opts.className) b.className = opts.className;
+  b.onclick = onclick;
+  return b;
+}
+
+function setControls(...buttons){
+  elControls.innerHTML = '';
+  buttons.forEach(b=>elControls.appendChild(b));
+}
+
+function log(msg, cls=''){
+  const line = document.createElement('div');
+  line.textContent = msg;
+  if(cls) line.classList.add(cls);
+  elLog.appendChild(line);
+  elLog.scrollTop = elLog.scrollHeight;
   speak(msg);
 }
 
-function speak(text){
-  if('speechSynthesis' in window){
-    let utter = new SpeechSynthesisUtterance(text);
-    utter.rate=1; utter.pitch=1;
-    window.speechSynthesis.speak(utter);
+function flashLog(text, colorClass){
+  const line = document.createElement('div');
+  if(colorClass) line.classList.add(colorClass);
+  line.classList.add('flash');
+  line.textContent = text;
+  elLog.appendChild(line);
+  elLog.scrollTop = elLog.scrollHeight;
+  speak(text);
+}
+
+/* =============================
+   CORE / MATH
+============================= */
+function clamp(v,min,max){ return Math.max(min, Math.min(max,v)); }
+function d20(){ return (Math.random()*20|0)+1; }
+function meleeDamage(){
+  let base = player.baseDamage + (player.buffs.strength>0 ? 5 : 0);
+  return base;
+}
+
+/* =============================
+   FLOW
+============================= */
+function mainMenu(){
+  game.inBattle = false;
+  renderEnemy();
+  setControls(
+    btn('Adventure', onAdventure),
+    btn('Skill Points', onSkillMenu),
+    btn('Start Mic 🎤', micStart, {className:'small'}),
+    btn('Stop Mic', micStop, {className:'small'})
+  );
+  renderStats();
+}
+
+function afterVictoryChoices(){
+  setControls(
+    btn('Continue Adventuring (risk ↑)', ()=>{
+      game.streak++;
+      onAdventure();
+    }),
+    btn('Return to Camp (reset)', ()=>{
+      game.streak = 0;
+      showCamp();
+    })
+  );
+}
+
+/* =============================
+   ADVENTURE (random event or battle)
+============================= */
+function onAdventure(){
+  if(game.inBattle) return;
+  // 25% random event
+  if(Math.random()<0.25){
+    randomEvent();
+    renderStats();
+    mainMenu();
+    return;
+  }
+  // Battle
+  const pool = enemies.filter(e => player.level >= e.levelMin);
+  enemy = JSON.parse(JSON.stringify(pool[Math.random()*pool.length|0]));
+  game.inBattle = true;
+  renderEnemy();
+  log(`⚔️ A ${enemy.name} appears!`, 'info');
+  battleControls();
+  renderStats();
+}
+
+function randomEvent(){
+  const roll = Math.random();
+  if(roll < 0.34){
+    const gold = (5 + (Math.random()*6|0)) * game.multiplier;
+    const gain = Math.floor(gold);
+    player.gold += gain;
+    flashLog(`You find a hidden stash. +${gain} gold.`, 'good');
+  } else if(roll < 0.67){
+    const dmg = 5 + (Math.random()*6|0);
+    player.hp = clamp(player.hp - dmg, 0, player.maxHp);
+    flashLog(`A snare trap snaps your leg! -${dmg} HP.`, 'bad');
+    if(player.hp<=0) return gameOver();
+  } else {
+    const heal = 10 + (Math.random()*6|0);
+    player.hp = clamp(player.hp + heal, 0, player.maxHp);
+    flashLog(`A wayside shrine soothes your wounds. +${heal} HP.`, 'good');
   }
 }
 
-function rollD20(){ return Math.floor(Math.random()*20)+1; }
-
-function delayedLog(lines,i,callback){
-  if(i<lines.length){
-    setTimeout(()=>{ log(lines[i]); delayedLog(lines,i+1,callback); },400);
-  } else if(callback) callback();
+/* =============================
+   BATTLE UI
+============================= */
+function battleControls(){
+  setControls(
+    btn('Attack', meleeMenu),
+    btn('Block', onBlock),
+    btn('Spells', spellMenu),
+    btn('Inventory', inventoryMenu),
+    btn('Run', onRun)
+  );
 }
 
-/* ---------------- Enemies ---------------- */
-const enemies = [
-  {name:'Rat', hp:5, damage:2, xp:2, gold:2, actions:['scurries to bite','leaps and scratches','gnaws at your boot','nibbles viciously','dodges and strikes']},
-  {name:'Goblin', hp:8, damage:3, xp:4, gold:3, actions:['slashes with a dagger','throws a rock','lunges wildly','stabs with crooked blade','swings a club']},
-  {name:'Slime', hp:6, damage:2, xp:3, gold:3, actions:['slaps with goo','hurls slime','oozes forward','splashes acidic goo','splits and strikes']},
-  {name:'Bandit', hp:10, damage:4, xp:6, gold:5, actions:['swings rusty sword','throws a punch','slashes dagger','lunges at you','sneaks behind for strike']},
-  {name:'Skeleton', hp:9, damage:3, xp:5, gold:4, actions:['slashes bone sword','hurls rib','lunges hollow-eyed','clatters forward','stabs with femur']},
-  {name:'Orc', hp:12, damage:5, xp:8, gold:7, actions:['smashes club','charges','swings fists','roars and strikes','stomps heavily']},
-  {name:'Giant Spider', hp:14, damage:4, xp:10, gold:8, actions:['lunges and bites','shoots web','slashes legs','spins to strike','venomous bite']},
-  {name:'Troll', hp:20, damage:7, xp:15, gold:15, actions:['swings fists','stomps ground','swipes claws','smashes rock','crushes with brute force']},
-  {name:'Dark Knight', hp:18, damage:6, xp:12, gold:12, actions:['strikes cursed sword','shield bash','slashes deadly','charges forward','lunges with blade']},
-  {name:'Dragon', hp:30, damage:10, xp:25, gold:25, actions:['breathes fire','swipes claws','lashes tail','roars and strikes','swoops down']},
-  {name:'Dragon Lord', hp:50, damage:15, xp:50, gold:50, actions:['breathes inferno','slashes with claws','smashes with tail','dark magic blast','stomps fiercely']}
-];
-
-/* ---------------- UI ---------------- */
-function resetGameButtons(inBattle=false){
-  let btnHTML = '';
-  if(!inBattle) btnHTML+=`<button onclick="adventure()">Adventure</button>`;
-  btnHTML+=`<button onclick="meleeMenu()">Attack</button>
-            <button onclick="block()">Block</button>
-            <button onclick="spellMenu()">Spells</button>
-            <button onclick="inventoryMenu()">Inventory</button>
-            <button onclick="runAway()">Run</button>`;
-  document.getElementById('game').innerHTML = btnHTML;
-}
-
-/* ---------------- Adventure ---------------- */
-function adventure(){
-  encounterCount++;
-  let pool = enemies.filter(e=>{
-    if(player.level<=2) return ['Rat','Goblin','Slime'].includes(e.name);
-    if(player.level<=4) return ['Goblin','Skeleton','Bandit'].includes(e.name);
-    if(player.level<=6) return ['Orc','Giant Spider','Skeleton','Bandit'].includes(e.name);
-    return enemies;
-  });
-  enemy = {...pool[Math.floor(Math.random()*pool.length)]};
-  log(`⚔️ A ${enemy.name} appears!`, "#ff5555");
-  resetGameButtons(true);
-  updateStats();
-}
-
-/* ---------------- Melee ---------------- */
 function meleeMenu(){
-  let btnHTML = '';
-  player.meleeSkills.forEach((m,i)=>{ btnHTML+=`<button onclick="meleeAttack(${i})">${m.name}</button>`; });
-  btnHTML+=`<button onclick="resetGameButtons(true)">Back</button>`;
-  document.getElementById('game').innerHTML = btnHTML;
+  setControls(
+    ...player.meleeSkills.map((m, i)=> btn(m.name, ()=>onMelee(i))),
+    btn('Back', battleControls, {className:'small'})
+  );
 }
 
-function meleeAttack(index){
-  if(!enemy.name) return;
-  let move = player.meleeSkills[index];
-  let roll = rollD20();
-  let lines = [`You use ${move.name}.`,`Roll: ${roll}`];
-  if(roll===20){
-    let critDmg = Math.floor(player.damage*move.dmgMult*2*adventureMultiplier);
-    enemy.hp -= critDmg;
-    lines.push(`✨ Critical hit! ${enemy.name} takes ${critDmg} damage!`);
-  } else if(roll>=move.threshold){
-    let dmg = Math.floor(player.damage*move.dmgMult*adventureMultiplier);
-    enemy.hp -= dmg;
-    lines.push(`${enemy.name} takes ${dmg} damage!`);
-  } else lines.push(`Your attack misses!`);
-  delayedLog(lines,0,checkEnemyStatus);
-  updateStats();
-}
-
-/* ---------------- Block ---------------- */
-function block(){ player.blocked=true; delayedLog(["You raise your guard."],0,enemyAttack); }
-
-/* ---------------- Spells ---------------- */
 function spellMenu(){
-  if(player.spells<=0){ log("No spells left!"); return; }
-  document.getElementById('game').innerHTML=`
-    <button onclick="castSpell('fireball')">Fireball</button>
-    <button onclick="castSpell('ice')">Ice Shard</button>
-    <button onclick="castSpell('lightning')">Lightning Bolt</button>
-    <button onclick="resetGameButtons(true)">Back</button>`;
+  if(player.spells<=0){ flashLog('No spells left!', 'muted'); return; }
+  setControls(
+    btn('Fireball', ()=>onCast('fireball')),
+    btn('Ice Shard', ()=>onCast('ice')),
+    btn('Lightning', ()=>onCast('lightning')),
+    btn('Back', battleControls, {className:'small'})
+  );
 }
 
-function castSpell(type){
-  if(!enemy.name) return;
-  if(player.spells<=0){ log("No spells!"); return; }
-  player.spells--;
-  let roll=rollD20();
-  let dmg=0, desc="";
-  if(type==='fireball'){ dmg=8; desc="You hurl a blazing fireball."; }
-  if(type==='ice'){ dmg=6; desc="You launch a freezing ice shard."; }
-  if(type==='lightning'){ dmg=10; desc="You call down a lightning bolt."; }
-  let lines=[desc,`Roll: ${roll}`];
-  if(roll>=10){ enemy.hp-=dmg; lines.push(`${enemy.name} takes ${dmg} damage!`);}
-  else lines.push("The spell fizzles!");
-  delayedLog(lines,0,checkEnemyStatus);
-  updateStats();
-}
-
-/* ---------------- Inventory ---------------- */
 function inventoryMenu(){
-  let btnHTML = '';
-  player.inventory.forEach((item,i)=>{ btnHTML+=`<button onclick="useItem(${i})">${item.name} x${item.count}</button>`; });
-  btnHTML+=`<button onclick="resetGameButtons(true)">Back</button>`;
-  document.getElementById('game').innerHTML = btnHTML;
+  const buttons = player.inventory.map((it, i)=>{
+    const label = `${it.name} x${it.count}`;
+    const b = btn(label, ()=>useItem(i));
+    if(it.count<=0) b.disabled = true;
+    return b;
+  });
+  buttons.push(btn('Back', battleControls, {className:'small'}));
+  setControls(...buttons);
 }
 
-function useItem(index){
-  let item = player.inventory[index];
-  if(item.count<=0){ log("No more of this item!"); return; }
-  if(item.type==="heal"){ player.hp+=item.value; if(player.hp>player.maxHp) player.hp=player.maxHp; log(`You use ${item.name} and heal ${item.value} HP!`);}
-  item.count--;
-  updateStats();
-  enemyAttack();
+/* =============================
+   BATTLE ACTIONS
+============================= */
+function onMelee(idx){
+  if(!game.inBattle || !enemy) return;
+  const move = player.meleeSkills[idx];
+  const roll = d20();
+  log(`You attempt: ${move.name}.`);
+  log(`Your roll: ${roll}.`);
+
+  if(roll===20){
+    // Crit double damage
+    const dmg = Math.floor(meleeDamage()*move.mult*2 * game.multiplier);
+    enemy.hp -= dmg;
+    flashLog(`✨ Critical! You deal ${dmg} damage.`, 'good');
+  } else if(roll===1){
+    flashLog(`😖 Fumble! Your attack whiffs.`, 'muted');
+  } else if(roll >= move.threshold){
+    const dmg = Math.floor(meleeDamage()*move.mult * game.multiplier);
+    enemy.hp -= dmg;
+    flashLog(`Hit! ${enemy.name} takes ${dmg}.`, 'good');
+  } else {
+    flashLog(`Miss!`, 'muted');
+  }
+
+  renderEnemy();
+  if(enemy.hp<=0) return onWin();
+
+  endPlayerTurn();
 }
 
-/* ---------------- Run ---------------- */
-function runAway(){
-  if(!enemy.name){ log("No enemy to run from."); return; }
-  log("You flee from battle!");
-  enemy={};
-  resetGameButtons(false);
+function onBlock(){
+  if(!game.inBattle) return;
+  player.blocked = true;
+  log(`You raise your guard.`);
+  endPlayerTurn();
 }
 
-/* ---------------- Enemy Attack ---------------- */
-function enemyAttack(){
-  if(!enemy.name) return;
-  const roll=rollD20();
-  let dmg=enemy.damage; if(player.blocked){ dmg=Math.floor(dmg/2); player.blocked=false; }
-  const action = enemy.actions[Math.floor(Math.random()*enemy.actions.length)];
-  let lines=[`${enemy.name} ${action}.`,`Roll: ${roll}`];
-  if(roll===20){ let critDmg=dmg*2; player.hp-=critDmg; lines.push(`💥 Critical hit! You take ${critDmg} damage!`);}
-  else if(roll>=10){ player.hp-=dmg; lines.push(`It hits you for ${dmg} damage.`);}
-  else lines.push('It misses you!');
-  delayedLog(lines,0,()=>{ if(player.hp<=0) gameOver(); updateStats(); });
+function onCast(type){
+  if(!game.inBattle || player.spells<=0) { flashLog('No spells!', 'muted'); return; }
+  player.spells--;
+  const roll = d20();
+  const baseSpell = (type==='fireball')? 10 + player.spellPower :
+                    (type==='ice')? 7 + player.spellPower :
+                    12 + player.spellPower; // lightning
+  const name = (type==='fireball')?'Fireball':'Ice Shard' && type==='ice'?'Ice Shard':'Lightning Bolt';
+  log(`You cast ${type==='fireball'?'Fireball':type==='ice'?'Ice Shard':'Lightning Bolt'}.`);
+  log(`Your roll: ${roll}.`);
+  if(roll===1){
+    flashLog('The spell fizzles!', 'muted');
+  } else if(roll===20){
+    const dmg = Math.floor(baseSpell*2 * game.multiplier);
+    enemy.hp -= dmg;
+    flashLog(`💥 Overchannel! ${enemy.name} takes ${dmg}.`, 'good');
+  } else if(roll>=10){
+    const dmg = Math.floor(baseSpell * game.multiplier);
+    enemy.hp -= dmg;
+    flashLog(`${enemy.name} is blasted for ${dmg}.`, 'good');
+  } else {
+    flashLog('The magic sputters short.', 'muted');
+  }
+  renderEnemy();
+  if(enemy.hp<=0) return onWin();
+  endPlayerTurn();
 }
 
-/* ---------------- Check Enemy Status ---------------- */
-function checkEnemyStatus(){
-  if(enemy.hp<=0){
-    let lines=[`You defeated the ${enemy.name}!`,`You gain ${enemy.xp} XP and ${enemy.gold} gold.`];
-    player.xp+=enemy.xp; player.gold+=enemy.gold; enemy={};
-    delayedLog(lines,0,()=>{
-      checkLevelUp();
-      checkCamp();
-      updateStats();
-      resetGameButtons(false);
-    });
-  } else enemyAttack();
+function useItem(i){
+  const it = player.inventory[i];
+  if(!it || it.count<=0) return;
+  if(it.type==='heal'){
+    const before = player.hp;
+    player.hp = clamp(player.hp + it.value, 0, player.maxHp);
+    flashLog(`You drink a ${it.name}. +${player.hp-before} HP.`, 'good');
+  } else if(it.type==='buff'){
+    player.buffs[it.key] = Math.max(player.buffs[it.key], it.value);
+    flashLog(`You quaff ${it.name}. ${it.desc}`, 'info');
+  } else if(it.type==='mana'){
+    player.spells = clamp(player.spells + it.value, 0, player.maxSpells);
+    flashLog(`You sip a ${it.name}. +${it.value} spells.`, 'info');
+  }
+  it.count--;
+  renderStats();
+  // Using an item consumes your turn
+  endPlayerTurn();
 }
 
-/* ---------------- Level Up ---------------- */
-function checkLevelUp(){
-  let need = player.level*20; // increased XP needed
-  if(player.xp>=need){
+function onRun(){
+  if(!game.inBattle) return;
+  const r = d20();
+  log('You attempt to flee.');
+  log(`Your roll: ${r}.`);
+  if(r>=10){
+    flashLog('You escape the fight!', 'info');
+    game.inBattle = false; enemy = null;
+    renderEnemy();
+    mainMenu();
+  } else {
+    flashLog('You fail to escape!', 'muted');
+    enemyTurn();
+  }
+}
+
+function endPlayerTurn(){
+  // tick buffs
+  if(player.buffs.strength>0) player.buffs.strength--;
+  if(player.buffs.shield>0)   player.buffs.shield--;
+  renderStats();
+  enemyTurn();
+}
+
+function enemyTurn(){
+  if(!game.inBattle || !enemy) return;
+  const roll = d20();
+  const move = enemy.moves[Math.random()*enemy.moves.length|0];
+  log(`${enemy.name} ${move}.`);
+  log(`Enemy roll: ${roll}.`);
+
+  let dmg = enemy.damage;
+  if(player.blocked){ dmg = Math.floor(dmg/2); player.blocked = false; }
+  if(player.buffs.shield>0) dmg = Math.floor(dmg/2);
+
+  if(roll===1){
+    flashLog(`${enemy.name} fumbles and misses.`, 'muted');
+  } else if(roll===20){
+    const hit = dmg*2;
+    player.hp = clamp(player.hp - hit, 0, player.maxHp);
+    flashLog(`💢 Critical! You take ${hit}.`, 'bad');
+  } else if(roll>=10){
+    player.hp = clamp(player.hp - dmg, 0, player.maxHp);
+    flashLog(`You are hit for ${dmg}.`, 'bad');
+  } else {
+    flashLog('It misses you!', 'muted');
+  }
+
+  renderStats();
+  if(player.hp<=0) return gameOver();
+
+  // back to player
+  battleControls();
+}
+
+/* =============================
+   WIN / CAMP / LEVEL
+============================= */
+function onWin(){
+  const xp = Math.floor(enemy.xp * game.multiplier);
+  const gold = Math.floor(enemy.gold * game.multiplier);
+  flashLog(`You defeated the ${enemy.name}!`, 'good');
+  log(`Rewards: +${xp} XP, +${gold} gold.`, 'info');
+
+  player.xp += xp;
+  player.gold += gold;
+  game.inBattle = false;
+  enemy = null;
+  renderEnemy();
+
+  // Level-up check with steeper curve
+  // XP need grows fast: level^2 * 30
+  while (player.xp >= xpNeeded(player.level+1)) {
     player.level++;
-    player.maxHp+=5; player.hp=player.maxHp;
-    player.damage+=2;
     player.skillPoints++;
-    log(`*** You reached Level ${player.level}! You have ${player.skillPoints} skill points to allocate. ***`, "#00ff00");
+    player.maxHp += 6;
+    player.hp = player.maxHp;
+    player.baseDamage += 1;
+    flashLog(`LEVEL UP! Level ${player.level}. +1 skill point.`, 'good');
+  }
+
+  encountersSinceCamp++;
+  renderStats();
+  afterVictoryChoices();
+}
+
+function xpNeeded(targetLevel){
+  return Math.floor((targetLevel*targetLevel)*30);
+}
+
+function showCamp(){
+  // reset streak, recharge spells
+  player.spells = player.maxSpells;
+  encountersSinceCamp = 0;
+  flashLog('You make camp. Your spells are fully restored.', 'info');
+  renderStats();
+
+  setControls(
+    btn(`Buy Weapon (+2 DMG) — ${shop.weaponCost}g`, ()=>{
+      if(player.gold>=shop.weaponCost){
+        player.gold-=shop.weaponCost; player.baseDamage+=2; shop.scale();
+        flashLog('Your blade is honed sharper.', 'good');
+        renderStats();
+      } else flashLog('Not enough gold.', 'muted');
+    }),
+    btn(`Buy Armor (+6 Max HP) — ${shop.armorCost}g`, ()=>{
+      if(player.gold>=shop.armorCost){
+        player.gold-=shop.armorCost; player.maxHp+=6; player.hp=player.maxHp; shop.scale();
+        flashLog('You don sturdier armor.', 'good');
+        renderStats();
+      } else flashLog('Not enough gold.', 'muted');
+    }),
+    btn(`Buy Tome (+1 Max Spells) — ${shop.spellCost}g`, ()=>{
+      if(player.gold>=shop.spellCost){
+        player.gold-=shop.spellCost; player.maxSpells+=1; player.spells=player.maxSpells; shop.scale();
+        flashLog('Arcane capacity expands.', 'good');
+        renderStats();
+      } else flashLog('Not enough gold.', 'muted');
+    }),
+    btn('Leave Camp', mainMenu)
+  );
+}
+
+/* =============================
+   SKILL POINTS
+============================= */
+function onSkillMenu(){
+  if(player.skillPoints<=0){
+    flashLog('No skill points available.', 'muted'); return;
+  }
+  setControls(
+    btn('Heart +10 Max HP', ()=>{
+      if(player.skillPoints>0){ player.skillPoints--; player.maxHp+=10; player.hp=player.maxHp; doneSkill(); }
+    }),
+    btn('Steel +2 Melee DMG', ()=>{
+      if(player.skillPoints>0){ player.skillPoints--; player.baseDamage+=2; doneSkill(); }
+    }),
+    btn('Arcana +2 Spell Power', ()=>{
+      if(player.skillPoints>0){ player.skillPoints--; player.spellPower+=2; doneSkill(); }
+    }),
+    btn('Back', mainMenu, {className:'small'})
+  );
+}
+function doneSkill(){
+  flashLog('Skill allocated.', 'good');
+  renderStats();
+  if(player.skillPoints>0){ onSkillMenu(); } else { mainMenu(); }
+}
+
+/* =============================
+   GAME OVER
+============================= */
+function gameOver(){
+  flashLog('*** You fall. The tale ends here. ***','bad');
+  setControls(btn('New Game', ()=>location.reload()));
+}
+
+/* =============================
+   VOICE: recognition + narration
+============================= */
+let rec = null;
+let recActive = false;
+
+function micStart(){
+  if(!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)){
+    flashLog('Speech recognition not supported on this browser.', 'muted');
+    elMicStat.textContent = 'Mic: unsupported';
+    return;
+  }
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  rec = new SR();
+  rec.lang = 'en-US';
+  rec.interimResults = false;
+  rec.continuous = true;
+
+  rec.onstart = ()=>{ recActive = true; elMicStat.textContent = 'Mic: listening…'; log('[MIC] started','muted'); };
+  rec.onend   = ()=>{ recActive = false; elMicStat.textContent = 'Mic: stopped'; log('[MIC] stopped','muted'); };
+  rec.onerror = (e)=>{ log(`[MIC ERROR] ${e.error||e.message}`,'bad'); };
+
+  rec.onresult = (evt)=>{
+    for(let i=evt.resultIndex;i<evt.results.length;i++){
+      if(evt.results[i].isFinal){
+        const transcript = evt.results[i][0].transcript.trim().toLowerCase();
+        log(`[MIC] “${transcript}”`,'muted');
+        handleVoice(transcript);
+      }
+    }
+  };
+  try{ rec.start(); }catch(e){ /* already started */ }
+}
+function micStop(){ if(rec && recActive){ rec.stop(); } }
+
+function speak(text){
+  if(!('speechSynthesis' in window)) return;
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.rate = 1; utter.pitch = 1;
+  window.speechSynthesis.speak(utter);
+}
+
+function handleVoice(t){
+  // general
+  if(/adventure|fight|venture/.test(t) && !game.inBattle) return onAdventure();
+  if(/camp|rest|return/.test(t) && !game.inBattle) return showCamp();
+  if(/skill/.test(t) && !game.inBattle) return onSkillMenu();
+  if(/inventory|bag|items/.test(t) && game.inBattle) return inventoryMenu();
+  if(/run|flee|escape/.test(t) && game.inBattle) return onRun();
+  if(/block|guard|defend/.test(t) && game.inBattle) return onBlock();
+
+  // melee
+  if(game.inBattle){
+    if(/quick/i.test(t))  return onMelee(0);
+    if(/precise|stab/i.test(t)) return onMelee(1);
+    if(/heavy|strike/i.test(t)) return onMelee(2);
+    if(/fireball/.test(t)) return onCast('fireball');
+    if(/ice/.test(t)) return onCast('ice');
+    if(/lightning|bolt/.test(t)) return onCast('lightning');
+
+    if(/health potion|heal potion|potion/.test(t)){
+      const idx = player.inventory.findIndex(it=>it.name.toLowerCase().includes('health') && it.count>0);
+      if(idx>-1) return useItem(idx);
+    }
   }
 }
 
-/* ---------------- Camp ---------------- */
-function checkCamp(){
-  if(encounterCount>=3+Math.floor(Math.random()*3)){
-    encounterCount=0;
-    showCampOptions();
-  }
-}
+/* =============================
+   INIT
+============================= */
+flashLog('You stand at the edge of the Emberwood. Rumors speak of a Dragon Lord in the northern peaks. Fortune favors the bold.', 'info');
+renderStats();
+mainMenu();
 
-function showCampOptions(){
-  player.spells=player.maxSpells;
-  log('You rest at the camp. Spell charges restored.', "#00ffcc");
-  updateStats();
-  log('--- CAMP ---','#ffcc00');
-  log('Purchase: 1) Weapon (+2 DMG, 20 Gold), 2) Armor (+5 Max HP, 20 Gold), 3) Spell (+1 Max Spell, 10 Gold).','#ffcc00');
-  let gameDiv = document.getElementById('game');
-  gameDiv.innerHTML=`
-    <button onclick="buy('weapon')">Buy Weapon</button>
-    <button onclick="buy('armor')">Buy Armor</button>
-    <button onclick="buy('spell')">Buy Spell</button>
-    <button onclick="leaveCamp()">Leave Camp</button>
-  `;
-}
-
-function buy(item){
-  if(item==='weapon' && player.gold>=20){ player.gold-=20; player.damage+=2; log("Weapon upgraded!"); }
-  else if(item==='armor' && player.gold>=20){ player.gold-=20; player.maxHp+=5; player.hp=player.maxHp; log("Armor upgraded!"); }
-  else if(item==='spell' && player.gold>=10){ player.gold-=10; player.maxSpells+=1; player.spells=player.maxSpells; log("Spell capacity increased!"); }
-  else { log("Not enough gold!"); }
-  updateStats();
-}
-
-function leaveCamp(){ log("You leave camp and continue your journey."); resetGameButtons(false); }
-
-/* ---------------- Game Over ---------------- */
-function gameOver(){ log("*** You died! Game Over. ***","#ff0000"); document.getElementById('game').innerHTML=''; }
-
-/* ---------------- Initialize ---------------- */
-updateStats();
-resetGameButtons(false);
-
-});
+}); // DOMContentLoaded
 </script>
 </body>
 </html>
