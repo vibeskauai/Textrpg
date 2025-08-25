@@ -4,14 +4,14 @@
 <meta charset="UTF-8">
 <title>ADVENTURE</title>
 <style>
-  body { font-family: sans-serif; background:#111; color:#eee; }
-  h1 { font-size: 32px; text-align:center; color:#ffcc00; }
-  #stats { font-size: 30px; color:#00ffcc; margin:10px; }
-  #game { margin:10px; }
-  #log { white-space: pre-line; max-height: 400px; overflow-y: auto; border:1px solid #555; padding:10px; margin:10px 0; font-size: 30px; color:#eee; }
-  button { margin:8px; padding:20px 32px; font-size:26px; min-width:140px; border-radius:6px; background:#333; color:#eee; border:1px solid #666; cursor:pointer; }
-  button:hover { background:#444; }
-  button:disabled { opacity:0.5; cursor:default; }
+body { font-family: sans-serif; background:#111; color:#eee; margin:0; padding:0; }
+h1 { font-size: 32px; text-align:center; color:#ffcc00; margin:10px; }
+#stats { font-size: 34px; color:#00ffcc; margin:10px; }
+#game { margin:10px; }
+#log { white-space: pre-line; max-height: 400px; overflow-y: auto; border:1px solid #555; padding:10px; margin:10px; font-size: 34px; color:#eee; }
+button { margin:8px; padding:20px 32px; font-size:30px; min-width:160px; border-radius:6px; background:#333; color:#eee; border:1px solid #666; cursor:pointer; }
+button:hover { background:#444; }
+button:disabled { opacity:0.5; cursor:default; }
 </style>
 </head>
 <body>
@@ -21,6 +21,8 @@
 <div id="log"></div>
 
 <script>
+document.addEventListener("DOMContentLoaded", function(){
+
 /* ---------------- Player & Enemy ---------------- */
 let player = {
   hp:30, maxHp:30, damage:5, xp:0, gold:10, level:1,
@@ -32,7 +34,6 @@ let player = {
   ],
   inventory:[{name:"Health Potion", type:"heal", value:20, count:2}]
 };
-
 let enemy = {};
 let encounterCount = 0;
 let adventureMultiplier = 1;
@@ -43,11 +44,11 @@ function updateStats(){
     `HP: ${player.hp}/${player.maxHp} | DMG: ${player.damage} | Gold: ${player.gold} | XP: ${player.xp} | Level: ${player.level} | Spells: ${player.spells}/${player.maxSpells} | Multiplier: x${adventureMultiplier}`;
 }
 
-function log(msg, color="#eee"){
+function log(msg,color="#eee"){
   let logDiv = document.getElementById('log');
   logDiv.innerHTML += `<span style="color:${color}">${msg}</span>\n`;
   logDiv.scrollTop = logDiv.scrollHeight;
-  speak(msg); // DM narration
+  speak(msg);
 }
 
 function speak(text){
@@ -81,7 +82,7 @@ const enemies = [
   {name:'Dragon Lord', hp:50, damage:15, xp:50, gold:50, actions:['breathes inferno','slashes with claws','smashes with tail','dark magic blast','stomps fiercely']}
 ];
 
-/* ---------------- Game UI ---------------- */
+/* ---------------- UI ---------------- */
 function resetGameButtons(inBattle=false){
   let btnHTML = '';
   if(!inBattle) btnHTML+=`<button onclick="adventure()">Adventure</button>`;
@@ -181,4 +182,93 @@ function useItem(index){
 }
 
 /* ---------------- Run ---------------- */
-function run
+function runAway(){
+  if(!enemy.name){ log("No enemy to run from."); return; }
+  log("You flee from battle!");
+  enemy={};
+  resetGameButtons(false);
+}
+
+/* ---------------- Enemy Attack ---------------- */
+function enemyAttack(){
+  if(!enemy.name) return;
+  const roll=rollD20();
+  let dmg=enemy.damage; if(player.blocked){ dmg=Math.floor(dmg/2); player.blocked=false; }
+  const action = enemy.actions[Math.floor(Math.random()*enemy.actions.length)];
+  let lines=[`${enemy.name} ${action}.`,`Roll: ${roll}`];
+  if(roll===20){ let critDmg=dmg*2; player.hp-=critDmg; lines.push(`💥 Critical hit! You take ${critDmg} damage!`);}
+  else if(roll>=10){ player.hp-=dmg; lines.push(`It hits you for ${dmg} damage.`);}
+  else lines.push('It misses you!');
+  delayedLog(lines,0,()=>{ if(player.hp<=0) gameOver(); updateStats(); });
+}
+
+/* ---------------- Check Enemy Status ---------------- */
+function checkEnemyStatus(){
+  if(enemy.hp<=0){
+    let lines=[`You defeated the ${enemy.name}!`,`You gain ${enemy.xp} XP and ${enemy.gold} gold.`];
+    player.xp+=enemy.xp; player.gold+=enemy.gold; enemy={};
+    delayedLog(lines,0,()=>{
+      checkLevelUp();
+      checkCamp();
+      updateStats();
+      resetGameButtons(false);
+    });
+  } else enemyAttack();
+}
+
+/* ---------------- Level Up ---------------- */
+function checkLevelUp(){
+  let need = player.level*20; // increased XP needed
+  if(player.xp>=need){
+    player.level++;
+    player.maxHp+=5; player.hp=player.maxHp;
+    player.damage+=2;
+    player.skillPoints++;
+    log(`*** You reached Level ${player.level}! You have ${player.skillPoints} skill points to allocate. ***`, "#00ff00");
+  }
+}
+
+/* ---------------- Camp ---------------- */
+function checkCamp(){
+  if(encounterCount>=3+Math.floor(Math.random()*3)){
+    encounterCount=0;
+    showCampOptions();
+  }
+}
+
+function showCampOptions(){
+  player.spells=player.maxSpells;
+  log('You rest at the camp. Spell charges restored.', "#00ffcc");
+  updateStats();
+  log('--- CAMP ---','#ffcc00');
+  log('Purchase: 1) Weapon (+2 DMG, 20 Gold), 2) Armor (+5 Max HP, 20 Gold), 3) Spell (+1 Max Spell, 10 Gold).','#ffcc00');
+  let gameDiv = document.getElementById('game');
+  gameDiv.innerHTML=`
+    <button onclick="buy('weapon')">Buy Weapon</button>
+    <button onclick="buy('armor')">Buy Armor</button>
+    <button onclick="buy('spell')">Buy Spell</button>
+    <button onclick="leaveCamp()">Leave Camp</button>
+  `;
+}
+
+function buy(item){
+  if(item==='weapon' && player.gold>=20){ player.gold-=20; player.damage+=2; log("Weapon upgraded!"); }
+  else if(item==='armor' && player.gold>=20){ player.gold-=20; player.maxHp+=5; player.hp=player.maxHp; log("Armor upgraded!"); }
+  else if(item==='spell' && player.gold>=10){ player.gold-=10; player.maxSpells+=1; player.spells=player.maxSpells; log("Spell capacity increased!"); }
+  else { log("Not enough gold!"); }
+  updateStats();
+}
+
+function leaveCamp(){ log("You leave camp and continue your journey."); resetGameButtons(false); }
+
+/* ---------------- Game Over ---------------- */
+function gameOver(){ log("*** You died! Game Over. ***","#ff0000"); document.getElementById('game').innerHTML=''; }
+
+/* ---------------- Initialize ---------------- */
+updateStats();
+resetGameButtons(false);
+
+});
+</script>
+</body>
+</html>
