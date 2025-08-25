@@ -119,11 +119,17 @@ const elMicStat = document.getElementById('micStatus');
 
 function renderStats(){
   const buffBits = [];
-  if(player.buffs.strength>0) buffBits.push(`STR:+5(${player.buffs.strength})`);
-  if(player.buffs.shield>0)   buffBits.push(`SHIELD(${player.buffs.shield})`);
+  if(player.buffs.strength>0) buffBits.push(`<span class='info'>STR:+5(${player.buffs.strength})</span>`);
+  if(player.buffs.shield>0)   buffBits.push(`<span class='info'>SHIELD(${player.buffs.shield})</span>`);
   const buffTxt = buffBits.length? ` | Buffs: ${buffBits.join(' ')}`:'';
   elStats.innerHTML =
-    `HP: ${player.hp}/${player.maxHp} | DMG: ${meleeDamage()} | Gold: ${player.gold} | XP: ${player.xp} | LV: ${player.level} | SP: ${player.spells}/${player.maxSpells} | Mult: x${game.multiplier.toFixed(1)}${buffTxt}`;
+    `<span class='good'>HP: ${player.hp}/${player.maxHp}</span> | `+
+    `<span class='bad'>DMG: ${meleeDamage()}</span> | `+
+    `<span class='accent'>Gold: ${player.gold}</span> | `+
+    `<span class='info'>XP: ${player.xp}</span> | `+
+    `<span class='muted'>LV: ${player.level}</span> | `+
+    `<span style='color:purple'>SP: ${player.spells}/${player.maxSpells}</span> | `+
+    `<span class='accent'>Mult: x${game.multiplier.toFixed(1)}</span>${buffTxt}`;
 }
 
 function renderEnemy(){
@@ -138,6 +144,7 @@ function btn(label, onclick, opts={}) {
   const b = document.createElement('button');
   b.textContent = label;
   if (opts.className) b.className = opts.className;
+  if (opts.colorClass) b.classList.add(opts.colorClass);
   b.onclick = onclick;
   return b;
 }
@@ -153,7 +160,8 @@ function log(msg, cls=''){
   if(cls) line.classList.add(cls);
   elLog.appendChild(line);
   elLog.scrollTop = elLog.scrollHeight;
-  speak(msg);
+  // Only speak if not a MIC command
+  if(!msg.startsWith('[MIC]')) speak(msg);
 }
 
 function flashLog(text, colorClass){
@@ -163,7 +171,7 @@ function flashLog(text, colorClass){
   line.textContent = text;
   elLog.appendChild(line);
   elLog.scrollTop = elLog.scrollHeight;
-  speak(text);
+  if(!text.startsWith('[MIC]')) speak(text);
 }
 
 /* =============================
@@ -185,7 +193,7 @@ function mainMenu(){
   setControls(
     btn('Adventure', onAdventure),
     btn('Skill Points', onSkillMenu),
-    btn('Start Mic 🎤', micStart, {className:'small'}),
+  btn('Start Mic', micStart, {className:'small'}),
     btn('Stop Mic', micStop, {className:'small'})
   );
   renderStats();
@@ -221,7 +229,7 @@ function onAdventure(){
   enemy = JSON.parse(JSON.stringify(pool[Math.random()*pool.length|0]));
   game.inBattle = true;
   renderEnemy();
-  log(`⚔️ A ${enemy.name} appears!`, 'info');
+  log(`A ${enemy.name} appears!`, 'info');
   battleControls();
   renderStats();
 }
@@ -250,39 +258,39 @@ function randomEvent(){
 ============================= */
 function battleControls(){
   setControls(
-    btn('Attack', meleeMenu),
-    btn('Block', onBlock),
-    btn('Spells', spellMenu),
-    btn('Inventory', inventoryMenu),
-    btn('Run', onRun)
+    btn('Attack', meleeMenu, {colorClass:'bad'}),
+    btn('Block', onBlock, {colorClass:'info'}),
+    btn('Spells', spellMenu, {colorClass:'good'}),
+    btn('Inventory', inventoryMenu, {colorClass:'accent'}),
+    btn('Run', onRun, {colorClass:'muted'})
   );
 }
 
 function meleeMenu(){
   setControls(
-    ...player.meleeSkills.map((m, i)=> btn(m.name, ()=>onMelee(i))),
-    btn('Back', battleControls, {className:'small'})
+    ...player.meleeSkills.map((m, i)=> btn(m.name, ()=>onMelee(i), {colorClass:'bad'})),
+    btn('Back', battleControls, {className:'small', colorClass:'muted'})
   );
 }
 
 function spellMenu(){
   if(player.spells<=0){ flashLog('No spells left!', 'muted'); return; }
   setControls(
-    btn('Fireball', ()=>onCast('fireball')),
-    btn('Ice Shard', ()=>onCast('ice')),
-    btn('Lightning', ()=>onCast('lightning')),
-    btn('Back', battleControls, {className:'small'})
+    btn('Fireball', ()=>onCast('fireball'), {colorClass:'good'}),
+    btn('Ice Shard', ()=>onCast('ice'), {colorClass:'info'}),
+    btn('Lightning', ()=>onCast('lightning'), {colorClass:'accent'}),
+    btn('Back', battleControls, {className:'small', colorClass:'muted'})
   );
 }
 
 function inventoryMenu(){
   const buttons = player.inventory.map((it, i)=>{
     const label = `${it.name} x${it.count}`;
-    const b = btn(label, ()=>useItem(i));
+    const b = btn(label, ()=>useItem(i), {colorClass:'accent'});
     if(it.count<=0) b.disabled = true;
     return b;
   });
-  buttons.push(btn('Back', battleControls, {className:'small'}));
+  buttons.push(btn('Back', battleControls, {className:'small', colorClass:'muted'}));
   setControls(...buttons);
 }
 
@@ -300,9 +308,9 @@ function onMelee(idx){
     // Crit double damage
     const dmg = Math.floor(meleeDamage()*move.mult*2 * game.multiplier);
     enemy.hp -= dmg;
-    flashLog(`✨ Critical! You deal ${dmg} damage.`, 'good');
+    flashLog(`Critical! You deal ${dmg} damage.`, 'good');
   } else if(roll===1){
-    flashLog(`😖 Fumble! Your attack whiffs.`, 'muted');
+    flashLog(`Fumble! Your attack whiffs.`, 'muted');
   } else if(roll >= move.threshold){
     const dmg = Math.floor(meleeDamage()*move.mult * game.multiplier);
     enemy.hp -= dmg;
@@ -339,7 +347,7 @@ function onCast(type){
   } else if(roll===20){
     const dmg = Math.floor(baseSpell*2 * game.multiplier);
     enemy.hp -= dmg;
-    flashLog(`💥 Overchannel! ${enemy.name} takes ${dmg}.`, 'good');
+    flashLog(`Overchannel! ${enemy.name} takes ${dmg}.`, 'good');
   } else if(roll>=10){
     const dmg = Math.floor(baseSpell * game.multiplier);
     enemy.hp -= dmg;
@@ -412,7 +420,7 @@ function enemyTurn(){
   } else if(roll===20){
     const hit = dmg*2;
     player.hp = clamp(player.hp - hit, 0, player.maxHp);
-    flashLog(`💢 Critical! You take ${hit}.`, 'bad');
+    flashLog(`Critical! You take ${hit}.`, 'bad');
   } else if(roll>=10){
     player.hp = clamp(player.hp - dmg, 0, player.maxHp);
     flashLog(`You are hit for ${dmg}.`, 'bad');
@@ -567,7 +575,12 @@ function micStop(){ if(rec && recActive){ rec.stop(); } }
 function speak(text){
   if(!('speechSynthesis' in window)) return;
   const utter = new SpeechSynthesisUtterance(text);
-  utter.rate = 1; utter.pitch = 1;
+  const voices = window.speechSynthesis.getVoices();
+  // Try to pick a natural-sounding voice (customize name as needed)
+  utter.voice = voices.find(v => v.name.includes("Aria") || v.name.includes("Google US English")) || voices[0];
+  utter.rate = 0.95; // slower, more natural
+  utter.pitch = 1.2; // higher pitch for emotion
+  utter.volume = 1;
   window.speechSynthesis.speak(utter);
 }
 
@@ -579,6 +592,7 @@ function handleVoice(t){
   if(/inventory|bag|items/.test(t) && game.inBattle) return inventoryMenu();
   if(/run|flee|escape/.test(t) && game.inBattle) return onRun();
   if(/block|guard|defend/.test(t) && game.inBattle) return onBlock();
+  if(/attack/.test(t) && game.inBattle) return meleeMenu();
 
   // melee
   if(game.inBattle){
