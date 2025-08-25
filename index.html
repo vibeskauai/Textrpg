@@ -56,7 +56,7 @@ const game = {
 const player = {
   hp: 30, maxHp: 30, baseDamage: 5, spellPower: 0,
   xp: 0, gold: 10, level: 1, skillPoints: 0,
-  blocked: false, spells: 3, maxSpells: 3,
+  blocked: false, mana: 12, maxMana: 12,
   buffs: { // durations tick down after each of YOUR turns
     strength: 0,   // +5 melee damage
     shield:   0,   // incoming damage halved
@@ -70,93 +70,25 @@ const player = {
     { name:"Health Potion",  type:"heal",   value:25, count:2, desc:"+25 HP" },
     { name:"Strength Potion",type:"buff",   key:"strength", value:3, count:1, desc:"+5 DMG for 3 turns" },
     { name:"Shield Potion",  type:"buff",   key:"shield",   value:3, count:1, desc:"Half damage for 3 turns" },
-    { name:"Mana Potion",    type:"mana",   value:2, count:1, desc:"+2 spell charges" }
+  { name:"Mana Potion",    type:"mana",   value:6, count:1, desc:"+6 mana" }
   ]
 };
 
 let enemy = null;
 let encountersSinceCamp = 0;
 
-// Progressive camp pricing
-const shop = {
-  weaponCost: 40,
-  armorCost: 40,
-  spellCost: 25,
-  scale(){ this.weaponCost+=10; this.armorCost+=10; this.spellCost+=5; }
-};
+  <h1>ADVENTURE</h1>
 
-/* =============================
-   ENEMIES
-============================= */
-const enemies = [
-  // Low tier
-  {name:'Rat', hp:7, damage:2, xp:2, gold:2, levelMin:1, desc:'A filthy, oversized rat with glistening fangs and eyes that burn with primal hunger. Its fur is matted and its tail whips the air as it scurries in the shadows.', moves:['scurries to bite with needle-sharp teeth','leaps and scratches with wild desperation','gnaws your boot, saliva dripping','nibbles viciously, eyes gleaming','darts and snaps, a blur of fur and fang']},
-  {name:'Kobold', hp:9, damage:3, xp:4, gold:4, levelMin:1, desc:'A scaly kobold, clutching a crude spear and wearing scraps of leather armor. Its snout wrinkles as it yips, eager for mischief and mayhem.', moves:['jabs with a splintered spear','flings a pebble with surprising accuracy','swipes with claws, hissing','dashes and slashes, tail lashing','yips and lunges, eyes full of cunning']},
-  {name:'Slime', hp:8, damage:2, xp:3, gold:3, levelMin:1, desc:'A quivering mass of emerald ooze, the slime glows faintly in the torchlight. Acidic bubbles pop along its surface as it oozes forward.', moves:['slaps with corrosive goo','hurls slime, sizzling on impact','oozes forward, leaving a trail','splashes acid, the air hissing','quivers and smacks, rippling with menace']},
-  {name:'Thicket Imp', hp:10, damage:3, xp:5, gold:4, levelMin:2, desc:'A mischievous imp, tangled in brambles and thorns. Its eyes glint with woodland magic as it cackles and darts between shadows.', moves:['whips thorny vines with a wicked grin','tosses enchanted thorns','scratches wildly, brambles flying','shrieks and swipes, voice echoing','spits sap, sticky and stinging']},
-  {name:'Bandit', hp:12, damage:4, xp:6, gold:6, levelMin:2, desc:'A ragged bandit, cloak torn and blade rusted. Greed burns in their eyes as they circle, looking for an opening.', moves:['slashes rusty blade, sparks flying','throws a punch, knuckles bruised','stabs low, eyes darting','feints and cuts, moving with practiced skill','kicks dirt then strikes, a dirty trickster']},
-  {name:'Skeleton', hp:12, damage:3, xp:6, gold:5, levelMin:2, desc:'A rattling skeleton, bones held together by dark magic. Its empty sockets glow with eerie blue fire as it advances.', moves:['slashes bone sword, brittle but deadly','hurls a rib, bone whistling through the air','clatters and lunges, joints creaking','pokes with femur, relentless','rakes with phalanges, fingers like daggers']},
-  // Mid
-  {name:'Orc', hp:16, damage:6, xp:10, gold:9, levelMin:4, desc:'A hulking orc, muscles bulging beneath scarred green skin. Its tusks jut from a snarling mouth as it bellows a war cry.', moves:['smashes club, earth trembling','charges headlong, eyes blazing','swings fists, thunderous blows','roars and strikes, voice shaking the cavern','stomps heavily, ground cracking']},
-  {name:'Giant Spider', hp:18, damage:5, xp:12, gold:11, levelMin:4, desc:'A monstrous spider, its carapace glistening and fangs dripping venom. Eight eyes glimmer in the darkness as it creeps closer.', moves:['lunges and bites, venom seeping','shoots web, sticky and strong','slashes legs, razor-sharp','spins and strikes, a dance of death','drips venom, poison pooling']},
-  {name:'Wight', hp:18, damage:6, xp:14, gold:12, levelMin:5, desc:'A spectral wight, shrouded in tattered robes. Its touch chills the soul, and its blade glows with necrotic energy.', moves:['reaches with chill, frost forming','casts a hex, words twisting','slashes spectral blade, shadows swirling','shrivels your courage with a whisper','hisses a curse, darkness gathering']},
-  // High
-  {name:'Troll', hp:26, damage:8, xp:20, gold:18, levelMin:6, desc:'A towering troll, skin like stone and eyes like embers. Its roar shakes the cavern as it swings a tree trunk club.', moves:['swings massive fists, wind howling','stomps the ground, rocks flying','swipes claws, tearing armor','smashes a boulder, dust billowing','crushes with fury, unstoppable']},
-  {name:'Dark Knight', hp:24, damage:7, xp:18, gold:16, levelMin:6, desc:'A fearsome dark knight, armor etched with runes and sword pulsing with shadow. Its visor glows red as it advances.', moves:['strikes cursed sword, shadows trailing','shield bash, forceful and cruel','deadly cut, blade whispering','drives forward, relentless','lunges from guard, a master of war']},
-  {name:'Dragon', hp:36, damage:11, xp:28, gold:28, levelMin:6, desc:'A legendary dragon, scales shimmering like jewels. Its wings unfurl, casting the land in shadow as fire flickers in its throat.', moves:['breathes fire, inferno roaring','swipes claws, talons gleaming','lashes tail, trees splintering','roars and dives, sky trembling','rakes with talons, a storm of fury']},
-  // Boss
-  {name:'Dragon Lord', hp:60, damage:16, xp:80, gold:80, levelMin:10, desc:'The Dragon Lord, ancient and terrible, wreathed in flame and shadow. Its eyes hold the wisdom and wrath of ages.', moves:['breathes an inferno, world burning','rends with claws, mountains trembling','smashes with tail, earth shattering','unleashes dark flame, night falling','shatters the earth, apocalypse looming']}
-];
+  <div id="topbar">
+    <div id="stats"></div>
+    <div id="enemy"></div>
+    <div id="micStatus" class="muted small"></div>
+  </div>
 
-/* =============================
-   UI HELPERS
-============================= */
-const elStats   = document.getElementById('stats');
-const elEnemy   = document.getElementById('enemy');
-const elLog     = document.getElementById('log');
-const elControls= document.getElementById('controls');
-const elMicStat = document.getElementById('micStatus');
+  <div id="controls"></div>
+  <div id="log"></div>
 
-function renderStats(){
-  const buffBits = [];
-  if(player.buffs.strength>0) buffBits.push(`<span class='info'>STR:+5(${player.buffs.strength})</span>`);
-  if(player.buffs.shield>0)   buffBits.push(`<span class='info'>SHIELD(${player.buffs.shield})</span>`);
-  const buffTxt = buffBits.length? ` | Buffs: ${buffBits.join(' ')}`:'';
-  elStats.innerHTML =
-    `<span class='good'>HP: ${player.hp}/${player.maxHp}</span> | `+
-    `<span class='bad'>DMG: ${meleeDamage()}</span> | `+
-    `<span class='accent'>Gold: ${player.gold}</span> | `+
-    `<span class='info'>XP: ${player.xp}</span> | `+
-    `<span class='muted'>LV: ${player.level}</span> | `+
-    `<span style='color:purple'>SP: ${player.spells}/${player.maxSpells}</span> | `+
-    `<span class='accent'>Mult: x${game.multiplier.toFixed(1)}</span>${buffTxt}`;
-}
-
-function renderEnemy(){
-  if(game.inBattle && enemy){
-    elEnemy.textContent = `Enemy: ${enemy.name} — HP: ${Math.max(enemy.hp,0)}`;
-  } else {
-    elEnemy.textContent = '';
-  }
-}
-
-function btn(label, onclick, opts={}) {
-  const b = document.createElement('button');
-  b.textContent = label;
-  if (opts.className) b.className = opts.className;
-  if (opts.colorClass) b.classList.add(opts.colorClass);
-  b.onclick = onclick;
-  return b;
-}
-
-function setControls(...buttons){
-  elControls.innerHTML = '';
-  buttons.forEach(b=>elControls.appendChild(b));
-}
-
-function log(msg, cls=''){
-  const line = document.createElement('div');
-  line.textContent = msg;
+  <script type="module" src="./js/main.js"></script>
   if(cls) line.classList.add(cls);
   elLog.appendChild(line);
   elLog.scrollTop = elLog.scrollHeight;
@@ -320,8 +252,8 @@ function randomEvent(){
     },
     // Magic surge
     () => {
-      player.spells = clamp(player.spells + 1, 0, player.maxSpells);
-      flashLog('A surge of magic restores a spell charge.', 'good');
+      player.mana = clamp(player.mana + 4, 0, player.maxMana);
+      flashLog('A surge of magic restores 4 mana.', 'good');
     },
     // Lost map
     () => {
@@ -381,12 +313,11 @@ function meleeMenu(){
 }
 
 function spellMenu(){
-  if(player.spells<=0){ flashLog('No spells left!', 'muted'); return; }
   setControls(
-    btn('Fireball', ()=>onCast('fireball'), {colorClass:'good'}),
-    btn('Ice Shard', ()=>onCast('ice'), {colorClass:'info'}),
-    btn('Lightning', ()=>onCast('lightning'), {colorClass:'accent'}),
-    btn('Healing Touch', ()=>onCast('heal'), {colorClass:'info'}),
+    btn('Fireball (5 mana)', ()=>onCast('fireball'), {colorClass:'good'}),
+    btn('Ice Shard (4 mana)', ()=>onCast('ice'), {colorClass:'info'}),
+    btn('Lightning (6 mana)', ()=>onCast('lightning'), {colorClass:'accent'}),
+    btn('Healing Touch (7 mana)', ()=>onCast('heal'), {colorClass:'info'}),
     btn('Back', battleControls, {className:'small', colorClass:'muted'})
   );
 }
@@ -442,8 +373,10 @@ function onBlock(){
 }
 
 function onCast(type){
-  if(!game.inBattle || player.spells<=0) { flashLog('No spells!', 'muted'); return; }
-  player.spells--;
+  const costs = { fireball: 5, ice: 4, lightning: 6, heal: 7 };
+  if(!game.inBattle) return;
+  if(player.mana < costs[type]) { flashLog('Not enough mana!', 'muted'); return; }
+  player.mana -= costs[type];
   const roll = d20();
   if(type==='heal') {
     log('You whisper an incantation, summoning radiant energy for Healing Touch.');
@@ -514,8 +447,8 @@ function useItem(i){
     player.buffs[it.key] = Math.max(player.buffs[it.key], it.value);
     flashLog(`You quaff ${it.name}. ${it.desc}`, 'info');
   } else if(it.type==='mana'){
-    player.spells = clamp(player.spells + it.value, 0, player.maxSpells);
-    flashLog(`You sip a ${it.name}. +${it.value} spells.`, 'info');
+    player.mana = clamp(player.mana + it.value, 0, player.maxMana);
+    flashLog(`You sip a ${it.name}. +${it.value} mana.`, 'info');
   }
   it.count--;
   renderStats();
@@ -615,9 +548,10 @@ function xpNeeded(targetLevel){
 
 function showCamp(){
   // reset streak, recharge spells
-  player.spells = player.maxSpells;
+  player.mana = player.maxMana;
+  player.hp = player.maxHp;
   encountersSinceCamp = 0;
-  flashLog('You make camp. Your spells are fully restored.', 'info');
+  flashLog('You make camp. Your health and mana are fully restored.', 'info');
   renderStats();
 
   setControls(
@@ -635,9 +569,9 @@ function showCamp(){
         renderStats();
       } else flashLog('Not enough gold.', 'muted');
     }),
-    btn(`Buy Tome (+1 Max Spells) — ${shop.spellCost}g`, ()=>{
+    btn(`Buy Tome (+4 Max Mana) — ${shop.spellCost}g`, ()=>{
       if(player.gold>=shop.spellCost){
-        player.gold-=shop.spellCost; player.maxSpells+=1; player.spells=player.maxSpells; shop.scale();
+        player.gold-=shop.spellCost; player.maxMana+=4; player.mana=player.maxMana; shop.scale();
         flashLog('Arcane capacity expands.', 'good');
         renderStats();
       } else flashLog('Not enough gold.', 'muted');
@@ -662,6 +596,9 @@ function onSkillMenu(){
     }),
     btn('Arcana +2 Spell Power', ()=>{
       if(player.skillPoints>0){ player.skillPoints--; player.spellPower+=2; doneSkill(); }
+    }),
+    btn('Mana +4 Max Mana', ()=>{
+      if(player.skillPoints>0){ player.skillPoints--; player.maxMana+=4; player.mana=player.maxMana; doneSkill(); }
     }),
     btn('Back', mainMenu, {className:'small'})
   );
