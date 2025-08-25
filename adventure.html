@@ -1,0 +1,1553 @@
+make this an html files: <!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ADVENTURE</title>
+<style>
+  :root{
+    --accent:#ffcc00; --cyan:#00ffcc; --good:#37ff6b; --bad:#ff4d4d; --info:#9ad1ff; --muted:#bbb;
+    --btn:#333; --btnb:#666; --btnh:#444; --bg:#111; --fg:#eee;
+  <!DOCTYPE html>
+  <html>
+  <head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ADVENTURE</title>
+  <style>
+    :root{
+      --accent:#ffcc00; --cyan:#00ffcc; --good:#37ff6b; --bad:#ff4d4d; --info:#9ad1ff; --muted:#bbb;
+      --btn:#333; --btnb:#666; --btnh:#444; --bg:#111; --fg:#eee;
+    }
+    html,body{margin:0;padding:0;background:var(--bg);color:var(--fg);font-family:sans-serif;}
+    h1{font-size:36px;text-align:center;color:var(--accent);margin:12px 8px;}
+    #topbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center;margin:6px 8px;}
+    #stats{font-size:30px;color:var(--cyan);}
+    #enemy{font-size:28px;color:var(--bad);}
+    #controls{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:8px;}
+    #log{white-space:pre-line;max-height:48vh;overflow-y:auto;border:1px solid #555;padding:10px;margin:8px;font-size:30px;}
+    button{margin:4px;padding:18px 26px;font-size:26px;min-width:150px;border-radius:8px;background:var(--btn);color:var(--fg);border:1px solid var(--btnb);cursor:pointer}
+    button:hover{background:var(--btnh);}
+    button:disabled{opacity:.5;cursor:default}
+    .small{font-size:20px;min-width:auto;padding:10px 14px}
+    .flash{animation:flash 450ms ease-in-out 2}
+    @keyframes flash{0%{background:rgba(255,255,255,.0)}50%{background:rgba(255,255,255,.2)}100%{background:rgba(255,255,255,.0)}}
+    .muted{color:var(--muted)}
+    .good{color:var(--good)}
+    .bad{color:var(--bad)}
+    .info{color:var(--info)}
+  </style>
+  </head>
+  <body>
+    <h1>ADVENTURE</h1>
+
+    <div id="topbar">
+      <div id="stats"></div>
+      <div id="enemy"></div>
+      <div id="micStatus" class="muted small"></div>
+    </div>
+
+    <div id="controls"></div>
+    <div id="log"></div>
+
+  <script>
+  document.addEventListener('DOMContentLoaded', () => {
+  /* =============================
+     STATE
+  ============================= */
+  const game = {
+    // risk/reward streak (x1.0, x1.2, x1.4, …)
+    streak: 0,
+    get multiplier(){ return (1 + this.streak * 0.2); },
+    inBattle: false,
+    pendingTurn: false
+  };
+
+  const player = {
+    hp: 30, maxHp: 30, baseDamage: 5, spellPower: 0,
+    xp: 0, gold: 10, level: 1, skillPoints: 0,
+    blocked: false, mana: 12, maxMana: 12,
+    buffs: { // durations tick down after each of YOUR turns
+      strength: 0,   // +5 melee damage
+      shield:   0,   // incoming damage halved
+    },
+    meleeSkills: [
+      { name:"Quick Slash",   threshold:8,  mult:0.8,  desc:"You whip your sword in a quick arc." },
+      { name:"Precise Stab",  threshold:10, mult:1.0,  desc:"You lunge for a precise opening."   },
+      { name:"Heavy Strike",  threshold:12, mult:1.5,  desc:"You heave a brutal overhand swing." }
+    ],
+    inventory: [
+      { name:"Health Potion",  type:"heal",   value:25, count:2, desc:"+25 HP" },
+      { name:"Strength Potion",type:"buff",   key:"strength", value:3, count:1, desc:"+5 DMG for 3 turns" },
+      { name:"Shield Potion",  type:"buff",   key:"shield",   value:3, count:1, desc:"Half damage for 3 turns" },
+    { name:"Mana Potion",    type:"mana",   value:6, count:1, desc:"+6 mana" }
+    ]
+  };
+
+  let enemy = null;
+  let encountersSinceCamp = 0;
+
+  // Progressive camp pricing
+  const shop = {
+    weaponCost: 40,
+    armorCost: 40,
+    spellCost: 25,
+    scale(){ this.weaponCost+=10; this.armorCost+=10; this.spellCost+=5; }
+  };
+
+  /* =============================
+     ENEMIES
+  ============================= */
+  const enemies = [
+    // Low tier
+    {name:'Rat', hp:7, damage:2, xp:2, gold:2, levelMin:1, desc:'A filthy, oversized rat with glistening fangs and eyes that burn with primal hunger. Its fur is matted and its tail whips the air as it scurries in the shadows.', moves:['scurries to bite with needle-sharp teeth','leaps and scratches with wild desperation','gnaws your boot, saliva dripping','nibbles viciously, eyes gleaming','darts and snaps, a blur of fur and fang']},
+    {name:'Kobold', hp:9, damage:3, xp:4, gold:4, levelMin:1, desc:'A scaly kobold, clutching a crude spear and wearing scraps of leather armor. Its snout wrinkles as it yips, eager for mischief and mayhem.', moves:['jabs with a splintered spear','flings a pebble with surprising accuracy','swipes with claws, hissing','dashes and slashes, tail lashing','yips and lunges, eyes full of cunning']},
+    {name:'Slime', hp:8, damage:2, xp:3, gold:3, levelMin:1, desc:'A quivering mass of emerald ooze, the slime glows faintly in the torchlight. Acidic bubbles pop along its surface as it oozes forward.', moves:['slaps with corrosive goo','hurls slime, sizzling on impact','oozes forward, leaving a trail','splashes acid, the air hissing','quivers and smacks, rippling with menace']},
+    {name:'Thicket Imp', hp:10, damage:3, xp:5, gold:4, levelMin:2, desc:'A mischievous imp, tangled in brambles and thorns. Its eyes glint with woodland magic as it cackles and darts between shadows.', moves:['whips thorny vines with a wicked grin','tosses enchanted thorns','scratches wildly, brambles flying','shrieks and swipes, voice echoing','spits sap, sticky and stinging']},
+    {name:'Bandit', hp:12, damage:4, xp:6, gold:6, levelMin:2, desc:'A ragged bandit, cloak torn and blade rusted. Greed burns in their eyes as they circle, looking for an opening.', moves:['slashes rusty blade, sparks flying','throws a punch, knuckles bruised','stabs low, eyes darting','feints and cuts, moving with practiced skill','kicks dirt then strikes, a dirty trickster']},
+    {name:'Skeleton', hp:12, damage:3, xp:6, gold:5, levelMin:2, desc:'A rattling skeleton, bones held together by dark magic. Its empty sockets glow with eerie blue fire as it advances.', moves:['slashes bone sword, brittle but deadly','hurls a rib, bone whistling through the air','clatters and lunges, joints creaking','pokes with femur, relentless','rakes with phalanges, fingers like daggers']},
+    // Mid
+    {name:'Orc', hp:16, damage:6, xp:10, gold:9, levelMin:4, desc:'A hulking orc, muscles bulging beneath scarred green skin. Its tusks jut from a snarling mouth as it bellows a war cry.', moves:['smashes club, earth trembling','charges headlong, eyes blazing','swings fists, thunderous blows','roars and strikes, voice shaking the cavern','stomps heavily, ground cracking']},
+    {name:'Giant Spider', hp:18, damage:5, xp:12, gold:11, levelMin:4, desc:'A monstrous spider, its carapace glistening and fangs dripping venom. Eight eyes glimmer in the darkness as it creeps closer.', moves:['lunges and bites, venom seeping','shoots web, sticky and strong','slashes legs, razor-sharp','spins and strikes, a dance of death','drips venom, poison pooling']},
+    {name:'Wight', hp:18, damage:6, xp:14, gold:12, levelMin:5, desc:'A spectral wight, shrouded in tattered robes. Its touch chills the soul, and its blade glows with necrotic energy.', moves:['reaches with chill, frost forming','casts a hex, words twisting','slashes spectral blade, shadows swirling','shrivels your courage with a whisper','hisses a curse, darkness gathering']},
+    // High
+    {name:'Troll', hp:26, damage:8, xp:20, gold:18, levelMin:6, desc:'A towering troll, skin like stone and eyes like embers. Its roar shakes the cavern as it swings a tree trunk club.', moves:['swings massive fists, wind howling','stomps the ground, rocks flying','swipes claws, tearing armor','smashes a boulder, dust billowing','crushes with fury, unstoppable']},
+    {name:'Dark Knight', hp:24, damage:7, xp:18, gold:16, levelMin:6, desc:'A fearsome dark knight, armor etched with runes and sword pulsing with shadow. Its visor glows red as it advances.', moves:['strikes cursed sword, shadows trailing','shield bash, forceful and cruel','deadly cut, blade whispering','drives forward, relentless','lunges from guard, a master of war']},
+    {name:'Dragon', hp:36, damage:11, xp:28, gold:28, levelMin:6, desc:'A legendary dragon, scales shimmering like jewels. Its wings unfurl, casting the land in shadow as fire flickers in its throat.', moves:['breathes fire, inferno roaring','swipes claws, talons gleaming','lashes tail, trees splintering','roars and dives, sky trembling','rakes with talons, a storm of fury']},
+    // Boss
+    {name:'Dragon Lord', hp:60, damage:16, xp:80, gold:80, levelMin:10, desc:'The Dragon Lord, ancient and terrible, wreathed in flame and shadow. Its eyes hold the wisdom and wrath of ages.', moves:['breathes an inferno, world burning','rends with claws, mountains trembling','smashes with tail, earth shattering','unleashes dark flame, night falling','shatters the earth, apocalypse looming']}
+  ];
+
+  /* =============================
+     UI HELPERS
+  ============================= */
+  const elStats   = document.getElementById('stats');
+  const elEnemy   = document.getElementById('enemy');
+  const elLog     = document.getElementById('log');
+  const elControls= document.getElementById('controls');
+  const elMicStat = document.getElementById('micStatus');
+
+  function renderStats(){
+    const buffBits = [];
+    if(player.buffs.strength>0) buffBits.push(`<span class='info'>STR:+5(${player.buffs.strength})</span>`);
+    if(player.buffs.shield>0)   buffBits.push(`<span class='info'>SHIELD(${player.buffs.shield})</span>`);
+    const buffTxt = buffBits.length? ` | Buffs: ${buffBits.join(' ')}`:'';
+    elStats.innerHTML =
+      `<span class='good'>HP: ${player.hp}/${player.maxHp}</span> | `+
+      `<span class='bad'>DMG: ${meleeDamage()}</span> | `+
+      `<span class='accent'>Gold: ${player.gold}</span> | `+
+      `<span class='info'>XP: ${player.xp}</span> | `+
+      `<span class='muted'>LV: ${player.level}</span> | `+
+    `<span style='color:purple'>Mana: ${player.mana}/${player.maxMana}</span> | `+
+      `<span class='accent'>Mult: x${game.multiplier.toFixed(1)}</span>${buffTxt}`;
+  }
+
+  function renderEnemy(){
+    if(game.inBattle && enemy){
+      elEnemy.textContent = `Enemy: ${enemy.name} — HP: ${Math.max(enemy.hp,0)}`;
+    } else {
+      elEnemy.textContent = '';
+    }
+  }
+
+  function btn(label, onclick, opts={}) {
+    const b = document.createElement('button');
+    b.textContent = label;
+    if (opts.className) b.className = opts.className;
+    if (opts.colorClass) b.classList.add(opts.colorClass);
+    b.onclick = onclick;
+    return b;
+  }
+
+  function setControls(...buttons){
+    elControls.innerHTML = '';
+    buttons.forEach(b=>elControls.appendChild(b));
+  }
+
+  function log(msg, cls=''){
+    const line = document.createElement('div');
+    line.textContent = msg;
+    if(cls) line.classList.add(cls);
+    elLog.appendChild(line);
+    elLog.scrollTop = elLog.scrollHeight;
+    // Only speak if not a MIC command
+    if(!msg.startsWith('[MIC]')) {
+      if(game.inBattle) speak(msg, 'excited');
+      else speak(msg);
+    }
+  }
+
+  function flashLog(text, colorClass){
+    const line = document.createElement('div');
+    if(colorClass) line.classList.add(colorClass);
+    line.classList.add('flash');
+    line.textContent = text;
+    elLog.appendChild(line);
+    elLog.scrollTop = elLog.scrollHeight;
+    if(!text.startsWith('[MIC]')) {
+      if(game.inBattle) speak(text, 'excited');
+      else speak(text);
+    }
+  }
+
+  /* =============================
+     CORE / MATH
+  ============================= */
+  function clamp(v,min,max){ return Math.max(min, Math.min(max,v)); }
+  function d20(){ return (Math.random()*20|0)+1; }
+  function meleeDamage(){
+    let base = player.baseDamage + (player.buffs.strength>0 ? 5 : 0);
+    return base;
+  }
+
+  /* =============================
+     FLOW
+  ============================= */
+  function mainMenu(){
+    game.inBattle = false;
+    renderEnemy();
+    setControls(
+      btn('Adventure', onAdventure),
+      btn('Skill Points', onSkillMenu),
+    btn('Start Mic', micStart, {className:'small'}),
+      btn('Stop Mic', micStop, {className:'small'})
+    );
+    renderStats();
+  }
+
+  function afterVictoryChoices(){
+    setControls(
+      btn('Continue Adventuring (risk ↑)', ()=>{
+        game.streak++;
+        onAdventure();
+      }),
+      btn('Return to Camp (reset)', ()=>{
+        game.streak = 0;
+        showCamp();
+      })
+    );
+  }
+
+  /* =============================
+     ADVENTURE (random event or battle)
+  ============================= */
+  function onAdventure(){
+    if(game.inBattle) return;
+    // 25% random event
+    if(Math.random()<0.25){
+      randomEvent();
+      renderStats();
+      mainMenu();
+      return;
+    }
+    // Battle
+    const pool = enemies.filter(e => player.level >= e.levelMin);
+    enemy = JSON.parse(JSON.stringify(pool[Math.random()*pool.length|0]));
+    game.inBattle = true;
+    renderEnemy();
+    log(`As you press deeper into the dungeon, the air thickens with magic and menace.`, 'info');
+    setTimeout(() => {
+      log(`A ${enemy.name} emerges: ${enemy.desc}`, 'info');
+      setTimeout(() => {
+        battleControls();
+        renderStats();
+      }, 1200);
+    }, 1200);
+  }
+
+  function randomEvent(){
+    const events = [
+      // Gold/finds
+      () => {
+        const gold = (5 + (Math.random()*6|0)) * game.multiplier;
+        const gain = Math.floor(gold);
+        player.gold += gain;
+        flashLog(`You find a hidden stash. +${gain} gold.`, 'good');
+      },
+      // Trap
+      () => {
+        const dmg = 5 + (Math.random()*6|0);
+        player.hp = clamp(player.hp - dmg, 0, player.maxHp);
+        flashLog(`A snare trap snaps your leg! -${dmg} HP.`, 'bad');
+        if(player.hp<=0) return gameOver();
+      },
+      // Shrine
+      () => {
+        const heal = 10 + (Math.random()*6|0);
+        player.hp = clamp(player.hp + heal, 0, player.maxHp);
+        flashLog(`A wayside shrine soothes your wounds. +${heal} HP.`, 'good');
+      },
+      // D&D inspired events
+      // Magical portal
+      () => {
+        flashLog('A shimmering portal appears. You step through and feel time shift.', 'info');
+        player.xp += 5;
+      },
+      // Mimic chest
+      () => {
+        const dmg = 8 + (Math.random()*4|0);
+        player.hp = clamp(player.hp - dmg, 0, player.maxHp);
+        flashLog('A treasure chest bites you! It was a mimic. -'+dmg+' HP.', 'bad');
+        if(player.hp<=0) return gameOver();
+      },
+      // Wandering merchant
+      () => {
+        const gold = 10;
+        if(player.gold>=gold){
+          player.gold -= gold;
+          player.inventory[0].count += 1;
+          flashLog('A wandering merchant sells you a health potion for 10 gold.', 'info');
+        } else {
+          flashLog('A merchant offers a potion, but you lack the gold.', 'muted');
+        }
+      },
+      // Ancient rune
+      () => {
+        player.spellPower += 1;
+        flashLog('You discover an ancient rune. Spell Power +1.', 'good');
+      },
+      // Pitfall
+      () => {
+        const dmg = 12;
+        player.hp = clamp(player.hp - dmg, 0, player.maxHp);
+        flashLog('You fall into a pit! -'+dmg+' HP.', 'bad');
+        if(player.hp<=0) return gameOver();
+      },
+      // Blessing
+      () => {
+        player.buffs.strength += 2;
+        flashLog('A passing cleric blesses you. Strength buff +2 turns.', 'good');
+      },
+      // Cursed idol
+      () => {
+        player.buffs.shield = 0;
+        flashLog('You touch a cursed idol. Your shield buff is removed!', 'bad');
+      },
+      // Riddle
+      () => {
+        flashLog('A sphinx asks you a riddle. You ponder, but gain wisdom. XP +3.', 'info');
+        player.xp += 3;
+      },
+      // Magic surge
+      () => {
+        player.mana = clamp(player.mana + 4, 0, player.maxMana);
+        flashLog('A surge of magic restores 4 mana.', 'good');
+      },
+      // Lost map
+      () => {
+        player.xp += 2;
+        flashLog('You find a lost map. XP +2.', 'info');
+      },
+      // Poison gas
+      () => {
+        const dmg = 7;
+        player.hp = clamp(player.hp - dmg, 0, player.maxHp);
+        flashLog('A cloud of poison gas envelops you. -'+dmg+' HP.', 'bad');
+        if(player.hp<=0) return gameOver();
+      },
+      // Lucky coin
+      () => {
+        player.gold += 5;
+        flashLog('You find a lucky coin. +5 gold.', 'good');
+      },
+      // Enchanted spring
+      () => {
+        player.hp = clamp(player.hp + 8, 0, player.maxHp);
+        flashLog('You drink from an enchanted spring. +8 HP.', 'good');
+      },
+      // Goblin prank
+      () => {
+        player.gold = Math.max(0, player.gold-3);
+        flashLog('A goblin steals 3 gold from your pouch.', 'bad');
+      },
+      // Mysterious fog
+      () => {
+        flashLog('A mysterious fog confuses you. Nothing happens.', 'muted');
+      },
+    ];
+    // Pick a random event
+    const event = events[Math.floor(Math.random()*events.length)];
+    event();
+  }
+
+  /* =============================
+     BATTLE UI
+  ============================= */
+  function battleControls(){
+    setControls(
+      btn('Attack', meleeMenu, {colorClass:'bad'}),
+      btn('Block', onBlock, {colorClass:'info'}),
+      btn('Spells', spellMenu, {colorClass:'good'}),
+      btn('Inventory', inventoryMenu, {colorClass:'accent'}),
+      btn('Run', onRun, {colorClass:'muted'})
+    );
+  }
+
+  function meleeMenu(){
+    setControls(
+      ...player.meleeSkills.map((m, i)=> btn(m.name, ()=>onMelee(i), {colorClass:'bad'})),
+      btn('Back', battleControls, {className:'small', colorClass:'muted'})
+    );
+  }
+
+  function spellMenu(){
+    setControls(
+      btn('Fireball (5 mana)', ()=>onCast('fireball'), {colorClass:'good'}),
+      btn('Ice Shard (4 mana)', ()=>onCast('ice'), {colorClass:'info'}),
+      btn('Lightning (6 mana)', ()=>onCast('lightning'), {colorClass:'accent'}),
+      btn('Healing Touch (7 mana)', ()=>onCast('heal'), {colorClass:'info'}),
+      btn('Back', battleControls, {className:'small', colorClass:'muted'})
+    );
+  }
+
+  function inventoryMenu(){
+    const buttons = player.inventory.map((it, i)=>{
+      const label = `${it.name} x${it.count}`;
+      const b = btn(label, ()=>useItem(i), {colorClass:'accent'});
+      if(it.count<=0) b.disabled = true;
+      return b;
+    });
+    buttons.push(btn('Back', battleControls, {className:'small', colorClass:'muted'}));
+    setControls(...buttons);
+  }
+
+  /* =============================
+     BATTLE ACTIONS
+  ============================= */
+  function onMelee(idx){
+    if(!game.inBattle || !enemy) return;
+    const move = player.meleeSkills[idx];
+    const roll = d20();
+    log(`You steel yourself and prepare to unleash a ${player.meleeSkills[idx].name.toLowerCase()} against your foe.`);
+    setTimeout(() => {
+      log(`You focus, channeling your courage. Your roll: ${roll}.`);
+      setTimeout(() => {
+        if(roll===20){
+          // Crit double damage
+          const dmg = Math.floor(meleeDamage()*move.mult*2 * game.multiplier);
+          enemy.hp -= dmg;
+          flashLog(`With heroic might, you land a critical blow! ${enemy.name} reels as you deal ${dmg} damage.`, 'good');
+        } else if(roll===1){
+          flashLog(`Your weapon slips from your grasp—a fumble! The enemy mocks your misfortune.`, 'muted');
+        } else if(roll >= move.threshold){
+          const dmg = Math.floor(meleeDamage()*move.mult * game.multiplier);
+          enemy.hp -= dmg;
+          flashLog(`Your attack strikes true! ${enemy.name} staggers, taking ${dmg} damage.`, 'good');
+        } else {
+          flashLog(`Your attack misses, whistling through empty air.`, 'muted');
+        }
+        renderEnemy();
+        if(enemy.hp<=0) return onWin();
+        setTimeout(() => { endPlayerTurn(); }, 900);
+      }, 900);
+    }, 900);
+  }
+
+  function onBlock(){
+    if(!game.inBattle) return;
+    player.blocked = true;
+    log(`You raise your guard.`);
+    endPlayerTurn();
+  }
+
+  function onCast(type){
+    const costs = { fireball: 5, ice: 4, lightning: 6, heal: 7 };
+    if(!game.inBattle) return;
+    if(player.mana < costs[type]) { flashLog('Not enough mana!', 'muted'); return; }
+    player.mana -= costs[type];
+    const roll = d20();
+    if(type==='heal') {
+      log('You whisper an incantation, summoning radiant energy for Healing Touch.');
+      setTimeout(() => {
+        log(`A gentle light surrounds you. Your roll: ${roll}.`);
+        setTimeout(() => {
+          let heal = 15 + player.spellPower;
+          if(roll===1){
+            flashLog('The healing fizzles, the magic slipping through your fingers.', 'muted');
+          } else if(roll===20){
+            heal = Math.floor(heal * 2 * game.multiplier);
+            player.hp = clamp(player.hp + heal, 0, player.maxHp);
+            flashLog(`A surge of divine power! You are bathed in light and heal for ${heal} HP.`, 'good');
+          } else if(roll>=10){
+            heal = Math.floor(heal * game.multiplier);
+            player.hp = clamp(player.hp + heal, 0, player.maxHp);
+            flashLog(`Warmth floods your veins. You heal for ${heal} HP.`, 'good');
+          } else {
+            flashLog('The healing sputters, barely mending your wounds.', 'muted');
+          }
+          renderStats();
+          setTimeout(() => { endPlayerTurn(); }, 900);
+        }, 900);
+      }, 900);
+      return;
+    }
+    // ...existing code for other spells...
+    const baseSpell = (type==='fireball')? 10 + player.spellPower :
+                      (type==='ice')? 7 + player.spellPower :
+                      12 + player.spellPower; // lightning
+    const name = (type==='fireball')?'Fireball':'Ice Shard' && type==='ice'?'Ice Shard':'Lightning Bolt';
+    let spellDesc = '';
+    if(type==='fireball') spellDesc = 'You conjure a roaring Fireball, flames swirling in your palm.';
+    else if(type==='ice') spellDesc = 'You summon shards of glacial ice, the air crackling with frost.';
+    else spellDesc = 'You call forth a Lightning Bolt, electricity dancing along your fingertips.';
+    log(spellDesc);
+    setTimeout(() => {
+      log(`Arcane power surges. Your roll: ${roll}.`);
+      setTimeout(() => {
+        if(roll===1){
+          flashLog('The spell fizzles, magic dissipating into the ether.', 'muted');
+        } else if(roll===20){
+          const dmg = Math.floor(baseSpell*2 * game.multiplier);
+          enemy.hp -= dmg;
+          flashLog(`Raw power explodes forth! ${enemy.name} is engulfed and takes ${dmg} damage.`, 'good');
+        } else if(roll>=10){
+          const dmg = Math.floor(baseSpell * game.multiplier);
+          enemy.hp -= dmg;
+          flashLog(`Your spell strikes true! ${enemy.name} is blasted for ${dmg} damage.`, 'good');
+        } else {
+          flashLog('The magic sputters, barely harming your foe.', 'muted');
+        }
+        renderEnemy();
+        if(enemy.hp<=0) return onWin();
+        setTimeout(() => { endPlayerTurn(); }, 900);
+      }, 900);
+    }, 900);
+  }
+
+  function useItem(i){
+    const it = player.inventory[i];
+    if(!it || it.count<=0) return;
+    if(it.type==='heal'){
+      const before = player.hp;
+      player.hp = clamp(player.hp + it.value, 0, player.maxHp);
+      flashLog(`You drink a ${it.name}. +${player.hp-before} HP.`, 'good');
+    } else if(it.type==='buff'){
+      player.buffs[it.key] = Math.max(player.buffs[it.key], it.value);
+      flashLog(`You quaff ${it.name}. ${it.desc}`, 'info');
+    } else if(it.type==='mana'){
+      player.mana = clamp(player.mana + it.value, 0, player.maxMana);
+      flashLog(`You sip a ${it.name}. +${it.value} mana.`, 'info');
+    }
+    it.count--;
+    renderStats();
+    // Using an item consumes your turn
+    endPlayerTurn();
+  }
+
+  function onRun(){
+    if(!game.inBattle) return;
+    const r = d20();
+    log('You attempt to flee.');
+    log(`Your roll: ${r}.`);
+    if(r>=10){
+      flashLog('You escape the fight!', 'info');
+      game.inBattle = false; enemy = null;
+      renderEnemy();
+      mainMenu();
+    } else {
+      flashLog('You fail to escape!', 'muted');
+      enemyTurn();
+    }
+  }
+
+  function endPlayerTurn(){
+    // tick buffs
+    if(player.buffs.strength>0) player.buffs.strength--;
+    if(player.buffs.shield>0)   player.buffs.shield--;
+    renderStats();
+    enemyTurn();
+  }
+
+  function enemyTurn(){
+    if(!game.inBattle || !enemy) return;
+    const roll = d20();
+    const move = enemy.moves[Math.random()*enemy.moves.length|0];
+    log(`${enemy.name} ${move}.`);
+    setTimeout(() => {
+      log(`Enemy roll: ${roll}.`);
+      setTimeout(() => {
+        let dmg = enemy.damage;
+        if(player.blocked){ dmg = Math.floor(dmg/2); player.blocked = false; }
+        if(player.buffs.shield>0) dmg = Math.floor(dmg/2);
+        if(roll===1){
+          flashLog(`${enemy.name} fumbles and misses.`, 'muted');
+        } else if(roll===20){
+          const hit = dmg*2;
+          player.hp = clamp(player.hp - hit, 0, player.maxHp);
+          flashLog(`Critical! You take ${hit}.`, 'bad');
+        } else if(roll>=10){
+          player.hp = clamp(player.hp - dmg, 0, player.maxHp);
+          flashLog(`You were hit for ${dmg} HP.`, 'bad');
+        } else {
+          flashLog('It misses you!', 'muted');
+        }
+        renderStats();
+        if(player.hp<=0) return gameOver();
+        setTimeout(() => { battleControls(); }, 900);
+      }, 900);
+    }, 900);
+  }
+
+  /* =============================
+     WIN / CAMP / LEVEL
+  ============================= */
+  function onWin(){
+    const xp = Math.floor(enemy.xp * game.multiplier);
+    const gold = Math.floor(enemy.gold * game.multiplier);
+    flashLog(`You defeated the ${enemy.name}!`, 'good');
+    setTimeout(() => {
+      log(`Your rewards from this encounter are: +${xp} XP, +${gold} gold.`, 'info');
+      player.xp += xp;
+      player.gold += gold;
+      game.inBattle = false;
+      enemy = null;
+      renderEnemy();
+      // Level-up check with steeper curve
+      // XP need grows fast: level^2 * 30
+      setTimeout(() => {
+        while (player.xp >= xpNeeded(player.level+1)) {
+          player.level++;
+          player.skillPoints++;
+          player.maxHp += 6;
+          player.hp = player.maxHp;
+          player.baseDamage += 1;
+          flashLog(`LEVEL UP! Level ${player.level}. +1 skill point.`, 'good');
+        }
+        encountersSinceCamp++;
+        renderStats();
+        afterVictoryChoices();
+      }, 900);
+    }, 900);
+  }
+
+  function xpNeeded(targetLevel){
+    return Math.floor((targetLevel*targetLevel)*30);
+  }
+
+  function showCamp(){
+    // reset streak, recharge spells
+    player.mana = player.maxMana;
+    player.hp = player.maxHp;
+    encountersSinceCamp = 0;
+    flashLog('You make camp. Your health and mana are fully restored.', 'info');
+    renderStats();
+
+    setControls(
+      btn(`Buy Weapon (+2 DMG) — ${shop.weaponCost}g`, ()=>{
+        if(player.gold>=shop.weaponCost){
+          player.gold-=shop.weaponCost; player.baseDamage+=2; shop.scale();
+          flashLog('Your blade is honed sharper.', 'good');
+          renderStats();
+        } else flashLog('Not enough gold.', 'muted');
+      }),
+      btn(`Buy Armor (+6 Max HP) — ${shop.armorCost}g`, ()=>{
+        if(player.gold>=shop.armorCost){
+          player.gold-=shop.armorCost; player.maxHp+=6; player.hp=player.maxHp; shop.scale();
+          flashLog('You don sturdier armor.', 'good');
+          renderStats();
+        } else flashLog('Not enough gold.', 'muted');
+      }),
+      btn(`Buy Tome (+4 Max Mana) — ${shop.spellCost}g`, ()=>{
+        if(player.gold>=shop.spellCost){
+          player.gold-=shop.spellCost; player.maxMana+=4; player.mana=player.maxMana; shop.scale();
+          flashLog('Arcane capacity expands.', 'good');
+          renderStats();
+        } else flashLog('Not enough gold.', 'muted');
+      }),
+      btn('Leave Camp', mainMenu)
+    );
+  }
+
+  /* =============================
+     SKILL POINTS
+  ============================= */
+  function onSkillMenu(){
+    if(player.skillPoints<=0){
+      flashLog('No skill points available.', 'muted'); return;
+    }
+    setControls(
+      btn('Heart +10 Max HP', ()=>{
+        if(player.skillPoints>0){ player.skillPoints--; player.maxHp+=10; player.hp=player.maxHp; doneSkill(); }
+      }),
+      btn('Steel +2 Melee DMG', ()=>{
+        if(player.skillPoints>0){ player.skillPoints--; player.baseDamage+=2; doneSkill(); }
+      }),
+      btn('Arcana +2 Spell Power', ()=>{
+        if(player.skillPoints>0){ player.skillPoints--; player.spellPower+=2; doneSkill(); }
+      }),
+      btn('Mana +4 Max Mana', ()=>{
+        if(player.skillPoints>0){ player.skillPoints--; player.maxMana+=4; player.mana=player.maxMana; doneSkill(); }
+      }),
+      btn('Back', mainMenu, {className:'small'})
+    );
+  }
+  function doneSkill(){
+    flashLog('Skill allocated.', 'good');
+    renderStats();
+    if(player.skillPoints>0){ onSkillMenu(); } else { mainMenu(); }
+  }
+
+  /* =============================
+     GAME OVER
+  ============================= */
+  function gameOver(){
+    flashLog('*** You fall. The tale ends here. ***','bad');
+    setControls(btn('New Game', ()=>location.reload()));
+  }
+
+  /* =============================
+     VOICE: recognition + narration
+  ============================= */
+  let rec = null;
+  let recActive = false;
+
+  function micStart(){
+    if(!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)){
+      flashLog('Speech recognition not supported on this browser.', 'muted');
+      elMicStat.textContent = 'Mic: unsupported';
+      return;
+    }
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    rec = new SR();
+    rec.lang = 'en-US';
+    rec.interimResults = false;
+    rec.continuous = true;
+
+    rec.onstart = ()=>{ recActive = true; elMicStat.textContent = 'Mic: listening…'; };
+    rec.onend   = ()=>{ recActive = false; elMicStat.textContent = 'Mic: stopped'; };
+    rec.onerror = (e)=>{ log(`[MIC ERROR] ${e.error||e.message}`,'bad'); };
+
+    rec.onresult = (evt)=>{
+      for(let i=evt.resultIndex;i<evt.results.length;i++){
+        if(evt.results[i].isFinal){
+          const transcript = evt.results[i][0].transcript.trim().toLowerCase();
+          handleVoice(transcript);
+        }
+      }
+    };
+    try{ rec.start(); }catch(e){ /* already started */ }
+  }
+  function micStop(){ if(rec && recActive){ rec.stop(); } }
+
+  function speak(text){
+    if(!('speechSynthesis' in window)) return;
+    // emotion param now always used
+    const utter = new SpeechSynthesisUtterance(text);
+    const voices = window.speechSynthesis.getVoices();
+    utter.voice = voices.find(v => v.name.includes("Natural") || v.name.includes("Aria") || v.name.includes("Google US English")) || voices[0];
+    // Dynamic pitch/rate/volume
+    if (emotion === "excited") {
+      utter.pitch = 1.5;
+      utter.rate = 0.85;
+      utter.volume = 1;
+    } else if (emotion === "sad") {
+      utter.pitch = 0.8;
+      utter.rate = 0.7;
+      utter.volume = 0.8;
+    } else if (emotion === "angry") {
+      utter.pitch = 0.9;
+      utter.rate = 0.9;
+      utter.volume = 1;
+    } else if (emotion === "calm") {
+      utter.pitch = 1.1;
+      utter.rate = 0.8;
+      utter.volume = 0.9;
+    } else {
+      utter.pitch = 1.2;
+      utter.rate = 0.8;
+      utter.volume = 1;
+    }
+    window.speechSynthesis.speak(utter);
+  }
+
+  function handleVoice(t){
+    // general
+    if(/adventure|fight|venture/.test(t) && !game.inBattle) return onAdventure();
+    if(/camp|rest|return/.test(t) && !game.inBattle) return showCamp();
+    if(/skill/.test(t) && !game.inBattle) return onSkillMenu();
+    if(/inventory|bag|items|open inventory/.test(t) && game.inBattle) return inventoryMenu();
+    if(/run|flee|escape/.test(t) && game.inBattle) return onRun();
+    if(/block|guard|defend/.test(t) && game.inBattle) return onBlock();
+    if(/attack/.test(t) && game.inBattle) return meleeMenu();
+    if(/spells|spell/.test(t) && game.inBattle) return spellMenu();
+
+    // melee & spells
+    if(game.inBattle){
+      // Melee
+      if(/quick/i.test(t))  return onMelee(0);
+      if(/precise|stab/i.test(t)) return onMelee(1);
+      if(/heavy|strike/i.test(t)) return onMelee(2);
+      // Spells
+      if(/fireball/.test(t)) return onCast('fireball');
+      if(/ice/.test(t)) return onCast('ice');
+      if(/lightning|bolt/.test(t)) return onCast('lightning');
+      if(/healing touch|heal spell|heal/i.test(t)) return onCast('heal');
+
+      // Use item by name
+      const useMatch = t.match(/use (.+)/i);
+      if(useMatch) {
+        const itemName = useMatch[1].trim().toLowerCase();
+        const idx = player.inventory.findIndex(it => it.name.toLowerCase().includes(itemName) && it.count > 0);
+        if(idx > -1) return useItem(idx);
+        else flashLog(`No usable item found for '${itemName}'.`, 'muted');
+      } else if(/health potion|heal potion|potion/.test(t)){
+        const idx = player.inventory.findIndex(it=>it.name.toLowerCase().includes('health') && it.count>0);
+        if(idx>-1) return useItem(idx);
+      }
+    }
+  }
+
+  /* =============================
+     INIT
+  ============================= */
+  flashLog('You stand at the edge of the Emberwood. Rumors speak of a Dragon Lord in the northern peaks. Fortune favors the bold.', 'info');
+  renderStats();
+  mainMenu();
+
+  }); // DOMContentLoaded
+  </script>
+  </body>
+  </html>
+  xp: 0, gold: 10, level: 1, skillPoints: 0,
+  blocked: false, mana: 12, maxMana: 12,
+  buffs: { // durations tick down after each of YOUR turns
+    strength: 0,   // +5 melee damage
+    shield:   0,   // incoming damage halved
+  },
+  meleeSkills: [
+    { name:"Quick Slash",   threshold:8,  mult:0.8,  desc:"You whip your sword in a quick arc." },
+    { name:"Precise Stab",  threshold:10, mult:1.0,  desc:"You lunge for a precise opening."   },
+    { name:"Heavy Strike",  threshold:12, mult:1.5,  desc:"You heave a brutal overhand swing." }
+  ],
+  inventory: [
+    { name:"Health Potion",  type:"heal",   value:25, count:2, desc:"+25 HP" },
+    { name:"Strength Potion",type:"buff",   key:"strength", value:3, count:1, desc:"+5 DMG for 3 turns" },
+    { name:"Shield Potion",  type:"buff",   key:"shield",   value:3, count:1, desc:"Half damage for 3 turns" },
+  { name:"Mana Potion",    type:"mana",   value:6, count:1, desc:"+6 mana" }
+  ]
+};
+
+let enemy = null;
+let encountersSinceCamp = 0;
+
+// Progressive camp pricing
+const shop = {
+  weaponCost: 40,
+  armorCost: 40,
+  spellCost: 25,
+  scale(){ this.weaponCost+=10; this.armorCost+=10; this.spellCost+=5; }
+};
+
+/* =============================
+   ENEMIES
+============================= */
+const enemies = [
+  // Low tier
+  {name:'Rat', hp:7, damage:2, xp:2, gold:2, levelMin:1, desc:'A filthy, oversized rat with glistening fangs and eyes that burn with primal hunger. Its fur is matted and its tail whips the air as it scurries in the shadows.', moves:['scurries to bite with needle-sharp teeth','leaps and scratches with wild desperation','gnaws your boot, saliva dripping','nibbles viciously, eyes gleaming','darts and snaps, a blur of fur and fang']},
+  {name:'Kobold', hp:9, damage:3, xp:4, gold:4, levelMin:1, desc:'A scaly kobold, clutching a crude spear and wearing scraps of leather armor. Its snout wrinkles as it yips, eager for mischief and mayhem.', moves:['jabs with a splintered spear','flings a pebble with surprising accuracy','swipes with claws, hissing','dashes and slashes, tail lashing','yips and lunges, eyes full of cunning']},
+  {name:'Slime', hp:8, damage:2, xp:3, gold:3, levelMin:1, desc:'A quivering mass of emerald ooze, the slime glows faintly in the torchlight. Acidic bubbles pop along its surface as it oozes forward.', moves:['slaps with corrosive goo','hurls slime, sizzling on impact','oozes forward, leaving a trail','splashes acid, the air hissing','quivers and smacks, rippling with menace']},
+  {name:'Thicket Imp', hp:10, damage:3, xp:5, gold:4, levelMin:2, desc:'A mischievous imp, tangled in brambles and thorns. Its eyes glint with woodland magic as it cackles and darts between shadows.', moves:['whips thorny vines with a wicked grin','tosses enchanted thorns','scratches wildly, brambles flying','shrieks and swipes, voice echoing','spits sap, sticky and stinging']},
+  {name:'Bandit', hp:12, damage:4, xp:6, gold:6, levelMin:2, desc:'A ragged bandit, cloak torn and blade rusted. Greed burns in their eyes as they circle, looking for an opening.', moves:['slashes rusty blade, sparks flying','throws a punch, knuckles bruised','stabs low, eyes darting','feints and cuts, moving with practiced skill','kicks dirt then strikes, a dirty trickster']},
+  {name:'Skeleton', hp:12, damage:3, xp:6, gold:5, levelMin:2, desc:'A rattling skeleton, bones held together by dark magic. Its empty sockets glow with eerie blue fire as it advances.', moves:['slashes bone sword, brittle but deadly','hurls a rib, bone whistling through the air','clatters and lunges, joints creaking','pokes with femur, relentless','rakes with phalanges, fingers like daggers']},
+  // Mid
+  {name:'Orc', hp:16, damage:6, xp:10, gold:9, levelMin:4, desc:'A hulking orc, muscles bulging beneath scarred green skin. Its tusks jut from a snarling mouth as it bellows a war cry.', moves:['smashes club, earth trembling','charges headlong, eyes blazing','swings fists, thunderous blows','roars and strikes, voice shaking the cavern','stomps heavily, ground cracking']},
+  {name:'Giant Spider', hp:18, damage:5, xp:12, gold:11, levelMin:4, desc:'A monstrous spider, its carapace glistening and fangs dripping venom. Eight eyes glimmer in the darkness as it creeps closer.', moves:['lunges and bites, venom seeping','shoots web, sticky and strong','slashes legs, razor-sharp','spins and strikes, a dance of death','drips venom, poison pooling']},
+  {name:'Wight', hp:18, damage:6, xp:14, gold:12, levelMin:5, desc:'A spectral wight, shrouded in tattered robes. Its touch chills the soul, and its blade glows with necrotic energy.', moves:['reaches with chill, frost forming','casts a hex, words twisting','slashes spectral blade, shadows swirling','shrivels your courage with a whisper','hisses a curse, darkness gathering']},
+  // High
+  {name:'Troll', hp:26, damage:8, xp:20, gold:18, levelMin:6, desc:'A towering troll, skin like stone and eyes like embers. Its roar shakes the cavern as it swings a tree trunk club.', moves:['swings massive fists, wind howling','stomps the ground, rocks flying','swipes claws, tearing armor','smashes a boulder, dust billowing','crushes with fury, unstoppable']},
+  {name:'Dark Knight', hp:24, damage:7, xp:18, gold:16, levelMin:6, desc:'A fearsome dark knight, armor etched with runes and sword pulsing with shadow. Its visor glows red as it advances.', moves:['strikes cursed sword, shadows trailing','shield bash, forceful and cruel','deadly cut, blade whispering','drives forward, relentless','lunges from guard, a master of war']},
+  {name:'Dragon', hp:36, damage:11, xp:28, gold:28, levelMin:6, desc:'A legendary dragon, scales shimmering like jewels. Its wings unfurl, casting the land in shadow as fire flickers in its throat.', moves:['breathes fire, inferno roaring','swipes claws, talons gleaming','lashes tail, trees splintering','roars and dives, sky trembling','rakes with talons, a storm of fury']},
+  // Boss
+  {name:'Dragon Lord', hp:60, damage:16, xp:80, gold:80, levelMin:10, desc:'The Dragon Lord, ancient and terrible, wreathed in flame and shadow. Its eyes hold the wisdom and wrath of ages.', moves:['breathes an inferno, world burning','rends with claws, mountains trembling','smashes with tail, earth shattering','unleashes dark flame, night falling','shatters the earth, apocalypse looming']}
+];
+
+/* =============================
+   UI HELPERS
+============================= */
+const elStats   = document.getElementById('stats');
+const elEnemy   = document.getElementById('enemy');
+const elLog     = document.getElementById('log');
+const elControls= document.getElementById('controls');
+const elMicStat = document.getElementById('micStatus');
+
+function renderStats(){
+  const buffBits = [];
+  if(player.buffs.strength>0) buffBits.push(`<span class='info'>STR:+5(${player.buffs.strength})</span>`);
+  if(player.buffs.shield>0)   buffBits.push(`<span class='info'>SHIELD(${player.buffs.shield})</span>`);
+  const buffTxt = buffBits.length? ` | Buffs: ${buffBits.join(' ')}`:'';
+  elStats.innerHTML =
+    `<span class='good'>HP: ${player.hp}/${player.maxHp}</span> | `+
+    `<span class='bad'>DMG: ${meleeDamage()}</span> | `+
+    `<span class='accent'>Gold: ${player.gold}</span> | `+
+    `<span class='info'>XP: ${player.xp}</span> | `+
+    `<span class='muted'>LV: ${player.level}</span> | `+
+  `<span style='color:purple'>Mana: ${player.mana}/${player.maxMana}</span> | `+
+    `<span class='accent'>Mult: x${game.multiplier.toFixed(1)}</span>${buffTxt}`;
+}
+
+function renderEnemy(){
+  if(game.inBattle && enemy){
+    elEnemy.textContent = `Enemy: ${enemy.name} — HP: ${Math.max(enemy.hp,0)}`;
+  } else {
+    elEnemy.textContent = '';
+  }
+}
+
+function btn(label, onclick, opts={}) {
+  const b = document.createElement('button');
+  b.textContent = label;
+  if (opts.className) b.className = opts.className;
+  if (opts.colorClass) b.classList.add(opts.colorClass);
+  b.onclick = onclick;
+  return b;
+}
+
+function setControls(...buttons){
+  elControls.innerHTML = '';
+  buttons.forEach(b=>elControls.appendChild(b));
+}
+
+function log(msg, cls=''){
+  const line = document.createElement('div');
+  line.textContent = msg;
+  if(cls) line.classList.add(cls);
+  elLog.appendChild(line);
+  elLog.scrollTop = elLog.scrollHeight;
+  // Only speak if not a MIC command
+  if(!msg.startsWith('[MIC]')) {
+    if(game.inBattle) speak(msg, 'excited');
+    else speak(msg);
+  }
+}
+
+function flashLog(text, colorClass){
+  const line = document.createElement('div');
+  if(colorClass) line.classList.add(colorClass);
+  line.classList.add('flash');
+  line.textContent = text;
+  elLog.appendChild(line);
+  elLog.scrollTop = elLog.scrollHeight;
+  if(!text.startsWith('[MIC]')) {
+    if(game.inBattle) speak(text, 'excited');
+    else speak(text);
+  }
+}
+
+/* =============================
+   CORE / MATH
+============================= */
+function clamp(v,min,max){ return Math.max(min, Math.min(max,v)); }
+function d20(){ return (Math.random()*20|0)+1; }
+function meleeDamage(){
+  let base = player.baseDamage + (player.buffs.strength>0 ? 5 : 0);
+  return base;
+}
+
+/* =============================
+   FLOW
+============================= */
+function mainMenu(){
+  game.inBattle = false;
+  renderEnemy();
+  setControls(
+    btn('Adventure', onAdventure),
+    btn('Skill Points', onSkillMenu),
+  btn('Start Mic', micStart, {className:'small'}),
+    btn('Stop Mic', micStop, {className:'small'})
+  );
+  renderStats();
+}
+
+function afterVictoryChoices(){
+  setControls(
+    btn('Continue Adventuring (risk ↑)', ()=>{
+      game.streak++;
+      onAdventure();
+    }),
+    btn('Return to Camp (reset)', ()=>{
+      game.streak = 0;
+      showCamp();
+    })
+  );
+}
+
+/* =============================
+   ADVENTURE (random event or battle)
+============================= */
+function onAdventure(){
+  if(game.inBattle) return;
+  // 25% random event
+  if(Math.random()<0.25){
+    randomEvent();
+    renderStats();
+    mainMenu();
+    return;
+  }
+  // Battle
+  const pool = enemies.filter(e => player.level >= e.levelMin);
+  enemy = JSON.parse(JSON.stringify(pool[Math.random()*pool.length|0]));
+  game.inBattle = true;
+  renderEnemy();
+  log(`As you press deeper into the dungeon, the air thickens with magic and menace.`, 'info');
+  setTimeout(() => {
+    log(`A ${enemy.name} emerges: ${enemy.desc}`, 'info');
+    setTimeout(() => {
+      battleControls();
+      renderStats();
+    }, 1200);
+  }, 1200);
+}
+
+function randomEvent(){
+  const events = [
+    // Gold/finds
+    () => {
+      const gold = (5 + (Math.random()*6|0)) * game.multiplier;
+      const gain = Math.floor(gold);
+      player.gold += gain;
+      flashLog(`You find a hidden stash. +${gain} gold.`, 'good');
+    },
+    // Trap
+    () => {
+      const dmg = 5 + (Math.random()*6|0);
+      player.hp = clamp(player.hp - dmg, 0, player.maxHp);
+      flashLog(`A snare trap snaps your leg! -${dmg} HP.`, 'bad');
+      if(player.hp<=0) return gameOver();
+    },
+    // Shrine
+    () => {
+      const heal = 10 + (Math.random()*6|0);
+      player.hp = clamp(player.hp + heal, 0, player.maxHp);
+      flashLog(`A wayside shrine soothes your wounds. +${heal} HP.`, 'good');
+    },
+    // D&D inspired events
+    // Magical portal
+    () => {
+      flashLog('A shimmering portal appears. You step through and feel time shift.', 'info');
+      player.xp += 5;
+    },
+    // Mimic chest
+    () => {
+      const dmg = 8 + (Math.random()*4|0);
+      player.hp = clamp(player.hp - dmg, 0, player.maxHp);
+      flashLog('A treasure chest bites you! It was a mimic. -'+dmg+' HP.', 'bad');
+      if(player.hp<=0) return gameOver();
+    },
+    // Wandering merchant
+    () => {
+      const gold = 10;
+      if(player.gold>=gold){
+        player.gold -= gold;
+        player.inventory[0].count += 1;
+        flashLog('A wandering merchant sells you a health potion for 10 gold.', 'info');
+      } else {
+        flashLog('A merchant offers a potion, but you lack the gold.', 'muted');
+      }
+    },
+    // Ancient rune
+    () => {
+      player.spellPower += 1;
+      flashLog('You discover an ancient rune. Spell Power +1.', 'good');
+    },
+    // Pitfall
+    () => {
+      const dmg = 12;
+      player.hp = clamp(player.hp - dmg, 0, player.maxHp);
+      flashLog('You fall into a pit! -'+dmg+' HP.', 'bad');
+      if(player.hp<=0) return gameOver();
+    },
+    // Blessing
+    () => {
+      player.buffs.strength += 2;
+      flashLog('A passing cleric blesses you. Strength buff +2 turns.', 'good');
+    },
+    // Cursed idol
+    () => {
+      player.buffs.shield = 0;
+      flashLog('You touch a cursed idol. Your shield buff is removed!', 'bad');
+    },
+    // Riddle
+    () => {
+      flashLog('A sphinx asks you a riddle. You ponder, but gain wisdom. XP +3.', 'info');
+      player.xp += 3;
+    },
+    // Magic surge
+    () => {
+      player.mana = clamp(player.mana + 4, 0, player.maxMana);
+      flashLog('A surge of magic restores 4 mana.', 'good');
+    },
+    // Lost map
+    () => {
+      player.xp += 2;
+      flashLog('You find a lost map. XP +2.', 'info');
+    },
+    // Poison gas
+    () => {
+      const dmg = 7;
+      player.hp = clamp(player.hp - dmg, 0, player.maxHp);
+      flashLog('A cloud of poison gas envelops you. -'+dmg+' HP.', 'bad');
+      if(player.hp<=0) return gameOver();
+    },
+    // Lucky coin
+    () => {
+      player.gold += 5;
+      flashLog('You find a lucky coin. +5 gold.', 'good');
+    },
+    // Enchanted spring
+    () => {
+      player.hp = clamp(player.hp + 8, 0, player.maxHp);
+      flashLog('You drink from an enchanted spring. +8 HP.', 'good');
+    },
+    // Goblin prank
+    () => {
+      player.gold = Math.max(0, player.gold-3);
+      flashLog('A goblin steals 3 gold from your pouch.', 'bad');
+    },
+    // Mysterious fog
+    () => {
+      flashLog('A mysterious fog confuses you. Nothing happens.', 'muted');
+    },
+  ];
+  // Pick a random event
+  const event = events[Math.floor(Math.random()*events.length)];
+  event();
+}
+
+/* =============================
+   BATTLE UI
+============================= */
+function battleControls(){
+  setControls(
+    btn('Attack', meleeMenu, {colorClass:'bad'}),
+    btn('Block', onBlock, {colorClass:'info'}),
+    btn('Spells', spellMenu, {colorClass:'good'}),
+    btn('Inventory', inventoryMenu, {colorClass:'accent'}),
+    btn('Run', onRun, {colorClass:'muted'})
+  );
+}
+
+function meleeMenu(){
+  setControls(
+    ...player.meleeSkills.map((m, i)=> btn(m.name, ()=>onMelee(i), {colorClass:'bad'})),
+    btn('Back', battleControls, {className:'small', colorClass:'muted'})
+  );
+}
+
+function spellMenu(){
+  setControls(
+    btn('Fireball (5 mana)', ()=>onCast('fireball'), {colorClass:'good'}),
+    btn('Ice Shard (4 mana)', ()=>onCast('ice'), {colorClass:'info'}),
+    btn('Lightning (6 mana)', ()=>onCast('lightning'), {colorClass:'accent'}),
+    btn('Healing Touch (7 mana)', ()=>onCast('heal'), {colorClass:'info'}),
+    btn('Back', battleControls, {className:'small', colorClass:'muted'})
+  );
+}
+
+function inventoryMenu(){
+  const buttons = player.inventory.map((it, i)=>{
+    const label = `${it.name} x${it.count}`;
+    const b = btn(label, ()=>useItem(i), {colorClass:'accent'});
+    if(it.count<=0) b.disabled = true;
+    return b;
+  });
+  buttons.push(btn('Back', battleControls, {className:'small', colorClass:'muted'}));
+  setControls(...buttons);
+}
+
+/* =============================
+   BATTLE ACTIONS
+============================= */
+function onMelee(idx){
+  if(!game.inBattle || !enemy) return;
+  const move = player.meleeSkills[idx];
+  const roll = d20();
+  log(`You steel yourself and prepare to unleash a ${player.meleeSkills[idx].name.toLowerCase()} against your foe.`);
+  setTimeout(() => {
+    log(`You focus, channeling your courage. Your roll: ${roll}.`);
+    setTimeout(() => {
+      if(roll===20){
+        // Crit double damage
+        const dmg = Math.floor(meleeDamage()*move.mult*2 * game.multiplier);
+        enemy.hp -= dmg;
+        flashLog(`With heroic might, you land a critical blow! ${enemy.name} reels as you deal ${dmg} damage.`, 'good');
+      } else if(roll===1){
+        flashLog(`Your weapon slips from your grasp—a fumble! The enemy mocks your misfortune.`, 'muted');
+      } else if(roll >= move.threshold){
+        const dmg = Math.floor(meleeDamage()*move.mult * game.multiplier);
+        enemy.hp -= dmg;
+        flashLog(`Your attack strikes true! ${enemy.name} staggers, taking ${dmg} damage.`, 'good');
+      } else {
+        flashLog(`Your attack misses, whistling through empty air.`, 'muted');
+      }
+      renderEnemy();
+      if(enemy.hp<=0) return onWin();
+      setTimeout(() => { endPlayerTurn(); }, 900);
+    }, 900);
+  }, 900);
+}
+
+function onBlock(){
+  if(!game.inBattle) return;
+  player.blocked = true;
+  log(`You raise your guard.`);
+  endPlayerTurn();
+}
+
+function onCast(type){
+  const costs = { fireball: 5, ice: 4, lightning: 6, heal: 7 };
+  if(!game.inBattle) return;
+  if(player.mana < costs[type]) { flashLog('Not enough mana!', 'muted'); return; }
+  player.mana -= costs[type];
+  const roll = d20();
+  if(type==='heal') {
+    log('You whisper an incantation, summoning radiant energy for Healing Touch.');
+    setTimeout(() => {
+      log(`A gentle light surrounds you. Your roll: ${roll}.`);
+      setTimeout(() => {
+        let heal = 15 + player.spellPower;
+        if(roll===1){
+          flashLog('The healing fizzles, the magic slipping through your fingers.', 'muted');
+        } else if(roll===20){
+          heal = Math.floor(heal * 2 * game.multiplier);
+          player.hp = clamp(player.hp + heal, 0, player.maxHp);
+          flashLog(`A surge of divine power! You are bathed in light and heal for ${heal} HP.`, 'good');
+        } else if(roll>=10){
+          heal = Math.floor(heal * game.multiplier);
+          player.hp = clamp(player.hp + heal, 0, player.maxHp);
+          flashLog(`Warmth floods your veins. You heal for ${heal} HP.`, 'good');
+        } else {
+          flashLog('The healing sputters, barely mending your wounds.', 'muted');
+        }
+        renderStats();
+        setTimeout(() => { endPlayerTurn(); }, 900);
+      }, 900);
+    }, 900);
+    return;
+  }
+  // ...existing code for other spells...
+  const baseSpell = (type==='fireball')? 10 + player.spellPower :
+                    (type==='ice')? 7 + player.spellPower :
+                    12 + player.spellPower; // lightning
+  const name = (type==='fireball')?'Fireball':'Ice Shard' && type==='ice'?'Ice Shard':'Lightning Bolt';
+  let spellDesc = '';
+  if(type==='fireball') spellDesc = 'You conjure a roaring Fireball, flames swirling in your palm.';
+  else if(type==='ice') spellDesc = 'You summon shards of glacial ice, the air crackling with frost.';
+  else spellDesc = 'You call forth a Lightning Bolt, electricity dancing along your fingertips.';
+  log(spellDesc);
+  setTimeout(() => {
+    log(`Arcane power surges. Your roll: ${roll}.`);
+    setTimeout(() => {
+      if(roll===1){
+        flashLog('The spell fizzles, magic dissipating into the ether.', 'muted');
+      } else if(roll===20){
+        const dmg = Math.floor(baseSpell*2 * game.multiplier);
+        enemy.hp -= dmg;
+        flashLog(`Raw power explodes forth! ${enemy.name} is engulfed and takes ${dmg} damage.`, 'good');
+      } else if(roll>=10){
+        const dmg = Math.floor(baseSpell * game.multiplier);
+        enemy.hp -= dmg;
+        flashLog(`Your spell strikes true! ${enemy.name} is blasted for ${dmg} damage.`, 'good');
+      } else {
+        flashLog('The magic sputters, barely harming your foe.', 'muted');
+      }
+      renderEnemy();
+      if(enemy.hp<=0) return onWin();
+      setTimeout(() => { endPlayerTurn(); }, 900);
+    }, 900);
+  }, 900);
+}
+
+function useItem(i){
+  const it = player.inventory[i];
+  if(!it || it.count<=0) return;
+  if(it.type==='heal'){
+    const before = player.hp;
+    player.hp = clamp(player.hp + it.value, 0, player.maxHp);
+    flashLog(`You drink a ${it.name}. +${player.hp-before} HP.`, 'good');
+  } else if(it.type==='buff'){
+    player.buffs[it.key] = Math.max(player.buffs[it.key], it.value);
+    flashLog(`You quaff ${it.name}. ${it.desc}`, 'info');
+  } else if(it.type==='mana'){
+    player.mana = clamp(player.mana + it.value, 0, player.maxMana);
+    flashLog(`You sip a ${it.name}. +${it.value} mana.`, 'info');
+  }
+  it.count--;
+  renderStats();
+  // Using an item consumes your turn
+  endPlayerTurn();
+}
+
+function onRun(){
+  if(!game.inBattle) return;
+  const r = d20();
+  log('You attempt to flee.');
+  log(`Your roll: ${r}.`);
+  if(r>=10){
+    flashLog('You escape the fight!', 'info');
+    game.inBattle = false; enemy = null;
+    renderEnemy();
+    mainMenu();
+  } else {
+    flashLog('You fail to escape!', 'muted');
+    enemyTurn();
+  }
+}
+
+function endPlayerTurn(){
+  // tick buffs
+  if(player.buffs.strength>0) player.buffs.strength--;
+  if(player.buffs.shield>0)   player.buffs.shield--;
+  renderStats();
+  enemyTurn();
+}
+
+function enemyTurn(){
+  if(!game.inBattle || !enemy) return;
+  const roll = d20();
+  const move = enemy.moves[Math.random()*enemy.moves.length|0];
+  log(`${enemy.name} ${move}.`);
+  setTimeout(() => {
+    log(`Enemy roll: ${roll}.`);
+    setTimeout(() => {
+      let dmg = enemy.damage;
+      if(player.blocked){ dmg = Math.floor(dmg/2); player.blocked = false; }
+      if(player.buffs.shield>0) dmg = Math.floor(dmg/2);
+      if(roll===1){
+        flashLog(`${enemy.name} fumbles and misses.`, 'muted');
+      } else if(roll===20){
+        const hit = dmg*2;
+        player.hp = clamp(player.hp - hit, 0, player.maxHp);
+        flashLog(`Critical! You take ${hit}.`, 'bad');
+      } else if(roll>=10){
+        player.hp = clamp(player.hp - dmg, 0, player.maxHp);
+        flashLog(`You were hit for ${dmg} HP.`, 'bad');
+      } else {
+        flashLog('It misses you!', 'muted');
+      }
+      renderStats();
+      if(player.hp<=0) return gameOver();
+      setTimeout(() => { battleControls(); }, 900);
+    }, 900);
+  }, 900);
+}
+
+/* =============================
+   WIN / CAMP / LEVEL
+============================= */
+function onWin(){
+  const xp = Math.floor(enemy.xp * game.multiplier);
+  const gold = Math.floor(enemy.gold * game.multiplier);
+  flashLog(`You defeated the ${enemy.name}!`, 'good');
+  setTimeout(() => {
+    log(`Your rewards from this encounter are: +${xp} XP, +${gold} gold.`, 'info');
+    player.xp += xp;
+    player.gold += gold;
+    game.inBattle = false;
+    enemy = null;
+    renderEnemy();
+    // Level-up check with steeper curve
+    // XP need grows fast: level^2 * 30
+    setTimeout(() => {
+      while (player.xp >= xpNeeded(player.level+1)) {
+        player.level++;
+        player.skillPoints++;
+        player.maxHp += 6;
+        player.hp = player.maxHp;
+        player.baseDamage += 1;
+        flashLog(`LEVEL UP! Level ${player.level}. +1 skill point.`, 'good');
+      }
+      encountersSinceCamp++;
+      renderStats();
+      afterVictoryChoices();
+    }, 900);
+  }, 900);
+}
+
+function xpNeeded(targetLevel){
+  return Math.floor((targetLevel*targetLevel)*30);
+}
+
+function showCamp(){
+  // reset streak, recharge spells
+  player.mana = player.maxMana;
+  player.hp = player.maxHp;
+  encountersSinceCamp = 0;
+  flashLog('You make camp. Your health and mana are fully restored.', 'info');
+  renderStats();
+
+  setControls(
+    btn(`Buy Weapon (+2 DMG) — ${shop.weaponCost}g`, ()=>{
+      if(player.gold>=shop.weaponCost){
+        player.gold-=shop.weaponCost; player.baseDamage+=2; shop.scale();
+        flashLog('Your blade is honed sharper.', 'good');
+        renderStats();
+      } else flashLog('Not enough gold.', 'muted');
+    }),
+    btn(`Buy Armor (+6 Max HP) — ${shop.armorCost}g`, ()=>{
+      if(player.gold>=shop.armorCost){
+        player.gold-=shop.armorCost; player.maxHp+=6; player.hp=player.maxHp; shop.scale();
+        flashLog('You don sturdier armor.', 'good');
+        renderStats();
+      } else flashLog('Not enough gold.', 'muted');
+    }),
+    btn(`Buy Tome (+4 Max Mana) — ${shop.spellCost}g`, ()=>{
+      if(player.gold>=shop.spellCost){
+        player.gold-=shop.spellCost; player.maxMana+=4; player.mana=player.maxMana; shop.scale();
+        flashLog('Arcane capacity expands.', 'good');
+        renderStats();
+      } else flashLog('Not enough gold.', 'muted');
+    }),
+    btn('Leave Camp', mainMenu)
+  );
+}
+
+/* =============================
+   SKILL POINTS
+============================= */
+function onSkillMenu(){
+  if(player.skillPoints<=0){
+    flashLog('No skill points available.', 'muted'); return;
+  }
+  setControls(
+    btn('Heart +10 Max HP', ()=>{
+      if(player.skillPoints>0){ player.skillPoints--; player.maxHp+=10; player.hp=player.maxHp; doneSkill(); }
+    }),
+    btn('Steel +2 Melee DMG', ()=>{
+      if(player.skillPoints>0){ player.skillPoints--; player.baseDamage+=2; doneSkill(); }
+    }),
+    btn('Arcana +2 Spell Power', ()=>{
+      if(player.skillPoints>0){ player.skillPoints--; player.spellPower+=2; doneSkill(); }
+    }),
+    btn('Mana +4 Max Mana', ()=>{
+      if(player.skillPoints>0){ player.skillPoints--; player.maxMana+=4; player.mana=player.maxMana; doneSkill(); }
+    }),
+    btn('Back', mainMenu, {className:'small'})
+  );
+}
+function doneSkill(){
+  flashLog('Skill allocated.', 'good');
+  renderStats();
+  if(player.skillPoints>0){ onSkillMenu(); } else { mainMenu(); }
+}
+
+/* =============================
+   GAME OVER
+============================= */
+function gameOver(){
+  flashLog('*** You fall. The tale ends here. ***','bad');
+  setControls(btn('New Game', ()=>location.reload()));
+}
+
+/* =============================
+   VOICE: recognition + narration
+============================= */
+let rec = null;
+let recActive = false;
+
+function micStart(){
+  if(!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)){
+    flashLog('Speech recognition not supported on this browser.', 'muted');
+    elMicStat.textContent = 'Mic: unsupported';
+    return;
+  }
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  rec = new SR();
+  rec.lang = 'en-US';
+  rec.interimResults = false;
+  rec.continuous = true;
+
+  rec.onstart = ()=>{ recActive = true; elMicStat.textContent = 'Mic: listening…'; };
+  rec.onend   = ()=>{ recActive = false; elMicStat.textContent = 'Mic: stopped'; };
+  rec.onerror = (e)=>{ log(`[MIC ERROR] ${e.error||e.message}`,'bad'); };
+
+  rec.onresult = (evt)=>{
+    for(let i=evt.resultIndex;i<evt.results.length;i++){
+      if(evt.results[i].isFinal){
+        const transcript = evt.results[i][0].transcript.trim().toLowerCase();
+        handleVoice(transcript);
+      }
+    }
+  };
+  try{ rec.start(); }catch(e){ /* already started */ }
+}
+function micStop(){ if(rec && recActive){ rec.stop(); } }
+
+function speak(text){
+  if(!('speechSynthesis' in window)) return;
+  // emotion param now always used
+  const utter = new SpeechSynthesisUtterance(text);
+  const voices = window.speechSynthesis.getVoices();
+  utter.voice = voices.find(v => v.name.includes("Natural") || v.name.includes("Aria") || v.name.includes("Google US English")) || voices[0];
+  // Dynamic pitch/rate/volume
+  if (emotion === "excited") {
+    utter.pitch = 1.5;
+    utter.rate = 0.85;
+    utter.volume = 1;
+  } else if (emotion === "sad") {
+    utter.pitch = 0.8;
+    utter.rate = 0.7;
+    utter.volume = 0.8;
+  } else if (emotion === "angry") {
+    utter.pitch = 0.9;
+    utter.rate = 0.9;
+    utter.volume = 1;
+  } else if (emotion === "calm") {
+    utter.pitch = 1.1;
+    utter.rate = 0.8;
+    utter.volume = 0.9;
+  } else {
+    utter.pitch = 1.2;
+    utter.rate = 0.8;
+    utter.volume = 1;
+  }
+  window.speechSynthesis.speak(utter);
+}
+
+function handleVoice(t){
+  // general
+  if(/adventure|fight|venture/.test(t) && !game.inBattle) return onAdventure();
+  if(/camp|rest|return/.test(t) && !game.inBattle) return showCamp();
+  if(/skill/.test(t) && !game.inBattle) return onSkillMenu();
+  if(/inventory|bag|items|open inventory/.test(t) && game.inBattle) return inventoryMenu();
+  if(/run|flee|escape/.test(t) && game.inBattle) return onRun();
+  if(/block|guard|defend/.test(t) && game.inBattle) return onBlock();
+  if(/attack/.test(t) && game.inBattle) return meleeMenu();
+  if(/spells|spell/.test(t) && game.inBattle) return spellMenu();
+
+  // melee & spells
+  if(game.inBattle){
+    // Melee
+    if(/quick/i.test(t))  return onMelee(0);
+    if(/precise|stab/i.test(t)) return onMelee(1);
+    if(/heavy|strike/i.test(t)) return onMelee(2);
+    // Spells
+    if(/fireball/.test(t)) return onCast('fireball');
+    if(/ice/.test(t)) return onCast('ice');
+    if(/lightning|bolt/.test(t)) return onCast('lightning');
+    if(/healing touch|heal spell|heal/i.test(t)) return onCast('heal');
+
+    // Use item by name
+    const useMatch = t.match(/use (.+)/i);
+    if(useMatch) {
+      const itemName = useMatch[1].trim().toLowerCase();
+      const idx = player.inventory.findIndex(it => it.name.toLowerCase().includes(itemName) && it.count > 0);
+      if(idx > -1) return useItem(idx);
+      else flashLog(`No usable item found for '${itemName}'.`, 'muted');
+    } else if(/health potion|heal potion|potion/.test(t)){
+      const idx = player.inventory.findIndex(it=>it.name.toLowerCase().includes('health') && it.count>0);
+      if(idx>-1) return useItem(idx);
+    }
+  }
+}
+
+/* =============================
+   INIT
+============================= */
+flashLog('You stand at the edge of the Emberwood. Rumors speak of a Dragon Lord in the northern peaks. Fortune favors the bold.', 'info');
+renderStats();
+mainMenu();
+
+}); // DOMContentLoaded
+</script>
+</body>
+</html>
