@@ -77,18 +77,86 @@ const player = {
 let enemy = null;
 let encountersSinceCamp = 0;
 
-  <h1>ADVENTURE</h1>
+// Progressive camp pricing
+const shop = {
+  weaponCost: 40,
+  armorCost: 40,
+  spellCost: 25,
+  scale(){ this.weaponCost+=10; this.armorCost+=10; this.spellCost+=5; }
+};
 
-  <div id="topbar">
-    <div id="stats"></div>
-    <div id="enemy"></div>
-    <div id="micStatus" class="muted small"></div>
-  </div>
+/* =============================
+   ENEMIES
+============================= */
+const enemies = [
+  // Low tier
+  {name:'Rat', hp:7, damage:2, xp:2, gold:2, levelMin:1, desc:'A filthy, oversized rat with glistening fangs and eyes that burn with primal hunger. Its fur is matted and its tail whips the air as it scurries in the shadows.', moves:['scurries to bite with needle-sharp teeth','leaps and scratches with wild desperation','gnaws your boot, saliva dripping','nibbles viciously, eyes gleaming','darts and snaps, a blur of fur and fang']},
+  {name:'Kobold', hp:9, damage:3, xp:4, gold:4, levelMin:1, desc:'A scaly kobold, clutching a crude spear and wearing scraps of leather armor. Its snout wrinkles as it yips, eager for mischief and mayhem.', moves:['jabs with a splintered spear','flings a pebble with surprising accuracy','swipes with claws, hissing','dashes and slashes, tail lashing','yips and lunges, eyes full of cunning']},
+  {name:'Slime', hp:8, damage:2, xp:3, gold:3, levelMin:1, desc:'A quivering mass of emerald ooze, the slime glows faintly in the torchlight. Acidic bubbles pop along its surface as it oozes forward.', moves:['slaps with corrosive goo','hurls slime, sizzling on impact','oozes forward, leaving a trail','splashes acid, the air hissing','quivers and smacks, rippling with menace']},
+  {name:'Thicket Imp', hp:10, damage:3, xp:5, gold:4, levelMin:2, desc:'A mischievous imp, tangled in brambles and thorns. Its eyes glint with woodland magic as it cackles and darts between shadows.', moves:['whips thorny vines with a wicked grin','tosses enchanted thorns','scratches wildly, brambles flying','shrieks and swipes, voice echoing','spits sap, sticky and stinging']},
+  {name:'Bandit', hp:12, damage:4, xp:6, gold:6, levelMin:2, desc:'A ragged bandit, cloak torn and blade rusted. Greed burns in their eyes as they circle, looking for an opening.', moves:['slashes rusty blade, sparks flying','throws a punch, knuckles bruised','stabs low, eyes darting','feints and cuts, moving with practiced skill','kicks dirt then strikes, a dirty trickster']},
+  {name:'Skeleton', hp:12, damage:3, xp:6, gold:5, levelMin:2, desc:'A rattling skeleton, bones held together by dark magic. Its empty sockets glow with eerie blue fire as it advances.', moves:['slashes bone sword, brittle but deadly','hurls a rib, bone whistling through the air','clatters and lunges, joints creaking','pokes with femur, relentless','rakes with phalanges, fingers like daggers']},
+  // Mid
+  {name:'Orc', hp:16, damage:6, xp:10, gold:9, levelMin:4, desc:'A hulking orc, muscles bulging beneath scarred green skin. Its tusks jut from a snarling mouth as it bellows a war cry.', moves:['smashes club, earth trembling','charges headlong, eyes blazing','swings fists, thunderous blows','roars and strikes, voice shaking the cavern','stomps heavily, ground cracking']},
+  {name:'Giant Spider', hp:18, damage:5, xp:12, gold:11, levelMin:4, desc:'A monstrous spider, its carapace glistening and fangs dripping venom. Eight eyes glimmer in the darkness as it creeps closer.', moves:['lunges and bites, venom seeping','shoots web, sticky and strong','slashes legs, razor-sharp','spins and strikes, a dance of death','drips venom, poison pooling']},
+  {name:'Wight', hp:18, damage:6, xp:14, gold:12, levelMin:5, desc:'A spectral wight, shrouded in tattered robes. Its touch chills the soul, and its blade glows with necrotic energy.', moves:['reaches with chill, frost forming','casts a hex, words twisting','slashes spectral blade, shadows swirling','shrivels your courage with a whisper','hisses a curse, darkness gathering']},
+  // High
+  {name:'Troll', hp:26, damage:8, xp:20, gold:18, levelMin:6, desc:'A towering troll, skin like stone and eyes like embers. Its roar shakes the cavern as it swings a tree trunk club.', moves:['swings massive fists, wind howling','stomps the ground, rocks flying','swipes claws, tearing armor','smashes a boulder, dust billowing','crushes with fury, unstoppable']},
+  {name:'Dark Knight', hp:24, damage:7, xp:18, gold:16, levelMin:6, desc:'A fearsome dark knight, armor etched with runes and sword pulsing with shadow. Its visor glows red as it advances.', moves:['strikes cursed sword, shadows trailing','shield bash, forceful and cruel','deadly cut, blade whispering','drives forward, relentless','lunges from guard, a master of war']},
+  {name:'Dragon', hp:36, damage:11, xp:28, gold:28, levelMin:6, desc:'A legendary dragon, scales shimmering like jewels. Its wings unfurl, casting the land in shadow as fire flickers in its throat.', moves:['breathes fire, inferno roaring','swipes claws, talons gleaming','lashes tail, trees splintering','roars and dives, sky trembling','rakes with talons, a storm of fury']},
+  // Boss
+  {name:'Dragon Lord', hp:60, damage:16, xp:80, gold:80, levelMin:10, desc:'The Dragon Lord, ancient and terrible, wreathed in flame and shadow. Its eyes hold the wisdom and wrath of ages.', moves:['breathes an inferno, world burning','rends with claws, mountains trembling','smashes with tail, earth shattering','unleashes dark flame, night falling','shatters the earth, apocalypse looming']}
+];
 
-  <div id="controls"></div>
-  <div id="log"></div>
+/* =============================
+   UI HELPERS
+============================= */
+const elStats   = document.getElementById('stats');
+const elEnemy   = document.getElementById('enemy');
+const elLog     = document.getElementById('log');
+const elControls= document.getElementById('controls');
+const elMicStat = document.getElementById('micStatus');
 
-  <script type="module" src="./js/main.js"></script>
+function renderStats(){
+  const buffBits = [];
+  if(player.buffs.strength>0) buffBits.push(`<span class='info'>STR:+5(${player.buffs.strength})</span>`);
+  if(player.buffs.shield>0)   buffBits.push(`<span class='info'>SHIELD(${player.buffs.shield})</span>`);
+  const buffTxt = buffBits.length? ` | Buffs: ${buffBits.join(' ')}`:'';
+  elStats.innerHTML =
+    `<span class='good'>HP: ${player.hp}/${player.maxHp}</span> | `+
+    `<span class='bad'>DMG: ${meleeDamage()}</span> | `+
+    `<span class='accent'>Gold: ${player.gold}</span> | `+
+    `<span class='info'>XP: ${player.xp}</span> | `+
+    `<span class='muted'>LV: ${player.level}</span> | `+
+  `<span style='color:purple'>Mana: ${player.mana}/${player.maxMana}</span> | `+
+    `<span class='accent'>Mult: x${game.multiplier.toFixed(1)}</span>${buffTxt}`;
+}
+
+function renderEnemy(){
+  if(game.inBattle && enemy){
+    elEnemy.textContent = `Enemy: ${enemy.name} — HP: ${Math.max(enemy.hp,0)}`;
+  } else {
+    elEnemy.textContent = '';
+  }
+}
+
+function btn(label, onclick, opts={}) {
+  const b = document.createElement('button');
+  b.textContent = label;
+  if (opts.className) b.className = opts.className;
+  if (opts.colorClass) b.classList.add(opts.colorClass);
+  b.onclick = onclick;
+  return b;
+}
+
+function setControls(...buttons){
+  elControls.innerHTML = '';
+  buttons.forEach(b=>elControls.appendChild(b));
+}
+
+function log(msg, cls=''){
+  const line = document.createElement('div');
+  line.textContent = msg;
   if(cls) line.classList.add(cls);
   elLog.appendChild(line);
   elLog.scrollTop = elLog.scrollHeight;
@@ -651,9 +719,8 @@ function micStart(){
 }
 function micStop(){ if(rec && recActive){ rec.stop(); } }
 
-function speak(text){
-  if(!('speechSynthesis' in window)) return;
-  // emotion param now always used
+function speak(text, emotion) {
+  if (!('speechSynthesis' in window)) return;
   const utter = new SpeechSynthesisUtterance(text);
   const voices = window.speechSynthesis.getVoices();
   utter.voice = voices.find(v => v.name.includes("Natural") || v.name.includes("Aria") || v.name.includes("Google US English")) || voices[0];
