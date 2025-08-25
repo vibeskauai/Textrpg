@@ -41,6 +41,42 @@
   <div id="log"></div>
 
 <script>
+// Message queue for log/flashLog
+const logQueue = [];
+let logBusy = false;
+
+function processLogQueue() {
+  if (logBusy || logQueue.length === 0) return;
+  logBusy = true;
+  const {msg, cls, isFlash} = logQueue.shift();
+  const line = document.createElement('div');
+  line.textContent = msg;
+  if (cls) line.classList.add(cls);
+  if (isFlash) line.classList.add('flash');
+  elLog.appendChild(line);
+  elLog.scrollTop = elLog.scrollHeight;
+  // Only speak if not a MIC command
+  if (!msg.startsWith('[MIC]')) {
+    let emotion = (game.inBattle ? 'excited' : undefined);
+    speak(msg, emotion, () => {
+      logBusy = false;
+      processLogQueue();
+    });
+  } else {
+    logBusy = false;
+    processLogQueue();
+  }
+}
+
+function log(msg, cls='') {
+  logQueue.push({msg, cls, isFlash: false});
+  processLogQueue();
+}
+
+function flashLog(text, colorClass) {
+  logQueue.push({msg: text, cls: colorClass, isFlash: true});
+  processLogQueue();
+}
 document.addEventListener('DOMContentLoaded', () => {
 /* =============================
    STATE
@@ -152,32 +188,21 @@ function btn(label, onclick, opts={}) {
 function setControls(...buttons){
   elControls.innerHTML = '';
   buttons.forEach(b=>elControls.appendChild(b));
+  // Always add Start Mic and Stop Mic buttons at the end
+  const micStartBtn = btn('Start Mic', micStart, {className:'small'});
+  const micStopBtn = btn('Stop Mic', micStop, {className:'small'});
+  elControls.appendChild(micStartBtn);
+  elControls.appendChild(micStopBtn);
 }
 
 function log(msg, cls=''){
-  const line = document.createElement('div');
-  line.textContent = msg;
-  if(cls) line.classList.add(cls);
-  elLog.appendChild(line);
-  elLog.scrollTop = elLog.scrollHeight;
-  // Only speak if not a MIC command
-  if(!msg.startsWith('[MIC]')) {
-    if(game.inBattle) speak(msg, 'excited');
-    else speak(msg);
-  }
+  logQueue.push({msg, cls, isFlash: false});
+  processLogQueue();
 }
 
 function flashLog(text, colorClass){
-  const line = document.createElement('div');
-  if(colorClass) line.classList.add(colorClass);
-  line.classList.add('flash');
-  line.textContent = text;
-  elLog.appendChild(line);
-  elLog.scrollTop = elLog.scrollHeight;
-  if(!text.startsWith('[MIC]')) {
-    if(game.inBattle) speak(text, 'excited');
-    else speak(text);
-  }
+  logQueue.push({msg: text, cls: colorClass, isFlash: true});
+  processLogQueue();
 }
 
 /* =============================
@@ -410,7 +435,7 @@ function onMelee(idx){
   const roll = d20();
   log(`You steel yourself and prepare to unleash a ${player.meleeSkills[idx].name.toLowerCase()} against your foe.`);
   setTimeout(() => {
-    log(`You focus, channeling your courage. Your roll: ${roll}.`);
+    log(`You roll a ${roll}.`);
     setTimeout(() => {
       if(roll===20){
         // Crit double damage
@@ -449,7 +474,7 @@ function onCast(type){
   if(type==='heal') {
     log('You whisper an incantation, summoning radiant energy for Healing Touch.');
     setTimeout(() => {
-      log(`A gentle light surrounds you. Your roll: ${roll}.`);
+      log(`You roll a ${roll}.`);
       setTimeout(() => {
         let heal = 15 + player.spellPower;
         if(roll===1){
@@ -482,7 +507,7 @@ function onCast(type){
   else spellDesc = 'You call forth a Lightning Bolt, electricity dancing along your fingertips.';
   log(spellDesc);
   setTimeout(() => {
-    log(`Arcane power surges. Your roll: ${roll}.`);
+    log(`You roll a ${roll}.`);
     setTimeout(() => {
       if(roll===1){
         flashLog('The spell fizzles, magic dissipating into the ether.', 'muted');
@@ -528,7 +553,19 @@ function onRun(){
   if(!game.inBattle) return;
   const r = d20();
   log('You attempt to flee.');
-  log(`Your roll: ${r}.`);
+  setTimeout(() => {
+    log(`You roll a ${r}.`);
+    // ...existing code...
+    if(r>=10){
+      flashLog('You escape the fight!', 'info');
+      game.inBattle = false; enemy = null;
+      renderEnemy();
+      mainMenu();
+    } else {
+      flashLog('You fail to escape!', 'muted');
+      enemyTurn();
+    }
+  }, 900);
   if(r>=10){
     flashLog('You escape the fight!', 'info');
     game.inBattle = false; enemy = null;
@@ -719,33 +756,41 @@ function micStart(){
 }
 function micStop(){ if(rec && recActive){ rec.stop(); } }
 
-function speak(text, emotion) {
-  if (!('speechSynthesis' in window)) return;
+async function speak(text, emotion, onDone) {
+  // Always use OpenAI Voice API for narration
+  if (!('speechSynthesis' in window)) {
+    if (onDone) onDone();
+    return;
+  }
   const utter = new SpeechSynthesisUtterance(text);
   const voices = window.speechSynthesis.getVoices();
-  utter.voice = voices.find(v => v.name.includes("Natural") || v.name.includes("Aria") || v.name.includes("Google US English")) || voices[0];
-  // Dynamic pitch/rate/volume
+  // Prefer British English voices for realism
+  utter.voice = voices.find(v => v.lang === "en-GB" && (v.name.includes("Daniel") || v.name.includes("British") || v.name.includes("UK")))
+    || voices.find(v => v.lang === "en-GB")
+    || voices.find(v => v.lang.startsWith("en"))
+    || voices[0];
+  utter.pitch = 1.0;
+  utter.rate = 0.95;
+  utter.volume = 1;
   if (emotion === "excited") {
-    utter.pitch = .8;
-    utter.rate = 1.2;
-    utter.volume = 1;
+    utter.pitch = 1.1;
+    utter.rate = 1.05;
   } else if (emotion === "sad") {
-    utter.pitch = 0.8;
-    utter.rate = 0.7;
-    utter.volume = 0.8;
+    utter.pitch = 0.95;
+    utter.rate = 0.85;
+    utter.volume = 0.9;
   } else if (emotion === "angry") {
-    utter.pitch = 0.9;
-    utter.rate = 0.9;
+    utter.pitch = 0.98;
+    utter.rate = 1.1;
     utter.volume = 1;
   } else if (emotion === "calm") {
-    utter.pitch = 1.1;
-    utter.rate = 0.8;
-    utter.volume = 0.9;
-  } else {
-    utter.pitch = 1.2;
-    utter.rate = 0.8;
-    utter.volume = 1;
+    utter.pitch = 1.0;
+    utter.rate = 0.9;
+    utter.volume = 0.95;
   }
+  utter.onend = function() {
+    if (onDone) onDone();
+  };
   window.speechSynthesis.speak(utter);
 }
 
