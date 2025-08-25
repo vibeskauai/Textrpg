@@ -90,22 +90,22 @@ const shop = {
 ============================= */
 const enemies = [
   // Low tier
-  {name:'Rat', hp:7, damage:2, xp:2, gold:2, levelMin:1, moves:['scurries to bite','leaps and scratches','gnaws your boot','nibbles viciously','darts and snaps']},
-  {name:'Kobold', hp:9, damage:3, xp:4, gold:4, levelMin:1, moves:['jabs with a spear','flings a pebble','swipes with claws','dashes and slashes','yips and lunges']},
-  {name:'Slime', hp:8, damage:2, xp:3, gold:3, levelMin:1, moves:['slaps with goo','hurls slime','oozes forward','splashes acid','quivers and smacks']},
-  {name:'Thicket Imp', hp:10, damage:3, xp:5, gold:4, levelMin:2, moves:['whips vines','tosses thorns','scratches wildly','shrieks and swipes','spits sap']},
-  {name:'Bandit', hp:12, damage:4, xp:6, gold:6, levelMin:2, moves:['slashes rusty blade','throws a punch','stabs low','feints and cuts','kicks dirt then strikes']},
-  {name:'Skeleton', hp:12, damage:3, xp:6, gold:5, levelMin:2, moves:['slashes bone sword','hurls a rib','clatters and lunges','pokes with femur','rakes with phalanges']},
+  {name:'Rat', hp:7, damage:2, xp:2, gold:2, levelMin:1, desc:'A filthy, oversized rat with glistening fangs and eyes that burn with primal hunger. Its fur is matted and its tail whips the air as it scurries in the shadows.', moves:['scurries to bite with needle-sharp teeth','leaps and scratches with wild desperation','gnaws your boot, saliva dripping','nibbles viciously, eyes gleaming','darts and snaps, a blur of fur and fang']},
+  {name:'Kobold', hp:9, damage:3, xp:4, gold:4, levelMin:1, desc:'A scaly kobold, clutching a crude spear and wearing scraps of leather armor. Its snout wrinkles as it yips, eager for mischief and mayhem.', moves:['jabs with a splintered spear','flings a pebble with surprising accuracy','swipes with claws, hissing','dashes and slashes, tail lashing','yips and lunges, eyes full of cunning']},
+  {name:'Slime', hp:8, damage:2, xp:3, gold:3, levelMin:1, desc:'A quivering mass of emerald ooze, the slime glows faintly in the torchlight. Acidic bubbles pop along its surface as it oozes forward.', moves:['slaps with corrosive goo','hurls slime, sizzling on impact','oozes forward, leaving a trail','splashes acid, the air hissing','quivers and smacks, rippling with menace']},
+  {name:'Thicket Imp', hp:10, damage:3, xp:5, gold:4, levelMin:2, desc:'A mischievous imp, tangled in brambles and thorns. Its eyes glint with woodland magic as it cackles and darts between shadows.', moves:['whips thorny vines with a wicked grin','tosses enchanted thorns','scratches wildly, brambles flying','shrieks and swipes, voice echoing','spits sap, sticky and stinging']},
+  {name:'Bandit', hp:12, damage:4, xp:6, gold:6, levelMin:2, desc:'A ragged bandit, cloak torn and blade rusted. Greed burns in their eyes as they circle, looking for an opening.', moves:['slashes rusty blade, sparks flying','throws a punch, knuckles bruised','stabs low, eyes darting','feints and cuts, moving with practiced skill','kicks dirt then strikes, a dirty trickster']},
+  {name:'Skeleton', hp:12, damage:3, xp:6, gold:5, levelMin:2, desc:'A rattling skeleton, bones held together by dark magic. Its empty sockets glow with eerie blue fire as it advances.', moves:['slashes bone sword, brittle but deadly','hurls a rib, bone whistling through the air','clatters and lunges, joints creaking','pokes with femur, relentless','rakes with phalanges, fingers like daggers']},
   // Mid
-  {name:'Orc', hp:16, damage:6, xp:10, gold:9, levelMin:4, moves:['smashes club','charges headlong','swings fists','roars and strikes','stomps heavily']},
-  {name:'Giant Spider', hp:18, damage:5, xp:12, gold:11, levelMin:4, moves:['lunges and bites','shoots web','slashes legs','spins and strikes','drips venom']},
-  {name:'Wight', hp:18, damage:6, xp:14, gold:12, levelMin:5, moves:['reaches with chill','casts a hex','slashes spectral blade','shrivels your courage','hisses a curse']},
+  {name:'Orc', hp:16, damage:6, xp:10, gold:9, levelMin:4, desc:'A hulking orc, muscles bulging beneath scarred green skin. Its tusks jut from a snarling mouth as it bellows a war cry.', moves:['smashes club, earth trembling','charges headlong, eyes blazing','swings fists, thunderous blows','roars and strikes, voice shaking the cavern','stomps heavily, ground cracking']},
+  {name:'Giant Spider', hp:18, damage:5, xp:12, gold:11, levelMin:4, desc:'A monstrous spider, its carapace glistening and fangs dripping venom. Eight eyes glimmer in the darkness as it creeps closer.', moves:['lunges and bites, venom seeping','shoots web, sticky and strong','slashes legs, razor-sharp','spins and strikes, a dance of death','drips venom, poison pooling']},
+  {name:'Wight', hp:18, damage:6, xp:14, gold:12, levelMin:5, desc:'A spectral wight, shrouded in tattered robes. Its touch chills the soul, and its blade glows with necrotic energy.', moves:['reaches with chill, frost forming','casts a hex, words twisting','slashes spectral blade, shadows swirling','shrivels your courage with a whisper','hisses a curse, darkness gathering']},
   // High
-  {name:'Troll', hp:26, damage:8, xp:20, gold:18, levelMin:6, moves:['swings massive fists','stomps the ground','swipes claws','smashes a boulder','crushes with fury']},
-  {name:'Dark Knight', hp:24, damage:7, xp:18, gold:16, levelMin:6, moves:['strikes cursed sword','shield bash','deadly cut','drives forward','lunges from guard']},
-  {name:'Dragon', hp:36, damage:11, xp:28, gold:28, levelMin:6, moves:['breathes fire','swipes claws','lashes tail','roars and dives','rakes with talons']},
+  {name:'Troll', hp:26, damage:8, xp:20, gold:18, levelMin:6, desc:'A towering troll, skin like stone and eyes like embers. Its roar shakes the cavern as it swings a tree trunk club.', moves:['swings massive fists, wind howling','stomps the ground, rocks flying','swipes claws, tearing armor','smashes a boulder, dust billowing','crushes with fury, unstoppable']},
+  {name:'Dark Knight', hp:24, damage:7, xp:18, gold:16, levelMin:6, desc:'A fearsome dark knight, armor etched with runes and sword pulsing with shadow. Its visor glows red as it advances.', moves:['strikes cursed sword, shadows trailing','shield bash, forceful and cruel','deadly cut, blade whispering','drives forward, relentless','lunges from guard, a master of war']},
+  {name:'Dragon', hp:36, damage:11, xp:28, gold:28, levelMin:6, desc:'A legendary dragon, scales shimmering like jewels. Its wings unfurl, casting the land in shadow as fire flickers in its throat.', moves:['breathes fire, inferno roaring','swipes claws, talons gleaming','lashes tail, trees splintering','roars and dives, sky trembling','rakes with talons, a storm of fury']},
   // Boss
-  {name:'Dragon Lord', hp:60, damage:16, xp:80, gold:80, levelMin:10, moves:['breathes an inferno','rends with claws','smashes with tail','unleashes dark flame','shatters the earth']}
+  {name:'Dragon Lord', hp:60, damage:16, xp:80, gold:80, levelMin:10, desc:'The Dragon Lord, ancient and terrible, wreathed in flame and shadow. Its eyes hold the wisdom and wrath of ages.', moves:['breathes an inferno, world burning','rends with claws, mountains trembling','smashes with tail, earth shattering','unleashes dark flame, night falling','shatters the earth, apocalypse looming']}
 ];
 
 /* =============================
@@ -161,7 +161,10 @@ function log(msg, cls=''){
   elLog.appendChild(line);
   elLog.scrollTop = elLog.scrollHeight;
   // Only speak if not a MIC command
-  if(!msg.startsWith('[MIC]')) speak(msg);
+  if(!msg.startsWith('[MIC]')) {
+    if(game.inBattle) speak(msg, 'excited');
+    else speak(msg);
+  }
 }
 
 function flashLog(text, colorClass){
@@ -171,7 +174,10 @@ function flashLog(text, colorClass){
   line.textContent = text;
   elLog.appendChild(line);
   elLog.scrollTop = elLog.scrollHeight;
-  if(!text.startsWith('[MIC]')) speak(text);
+  if(!text.startsWith('[MIC]')) {
+    if(game.inBattle) speak(text, 'excited');
+    else speak(text);
+  }
 }
 
 /* =============================
@@ -229,9 +235,14 @@ function onAdventure(){
   enemy = JSON.parse(JSON.stringify(pool[Math.random()*pool.length|0]));
   game.inBattle = true;
   renderEnemy();
-  log(`A ${enemy.name} appears!`, 'info');
-  battleControls();
-  renderStats();
+  log(`As you press deeper into the dungeon, the air thickens with magic and menace.`, 'info');
+  setTimeout(() => {
+    log(`A ${enemy.name} emerges: ${enemy.desc}`, 'info');
+    setTimeout(() => {
+      battleControls();
+      renderStats();
+    }, 1200);
+  }, 1200);
 }
 
 function randomEvent(){
@@ -398,28 +409,29 @@ function onMelee(idx){
   if(!game.inBattle || !enemy) return;
   const move = player.meleeSkills[idx];
   const roll = d20();
-  log(`You attempt: ${move.name}.`);
-  log(`Your roll: ${roll}.`);
-
-  if(roll===20){
-    // Crit double damage
-    const dmg = Math.floor(meleeDamage()*move.mult*2 * game.multiplier);
-    enemy.hp -= dmg;
-    flashLog(`Critical! You deal ${dmg} damage.`, 'good');
-  } else if(roll===1){
-    flashLog(`Fumble! Your attack whiffs.`, 'muted');
-  } else if(roll >= move.threshold){
-    const dmg = Math.floor(meleeDamage()*move.mult * game.multiplier);
-    enemy.hp -= dmg;
-    flashLog(`Hit! ${enemy.name} takes ${dmg}.`, 'good');
-  } else {
-    flashLog(`Miss!`, 'muted');
-  }
-
-  renderEnemy();
-  if(enemy.hp<=0) return onWin();
-
-  endPlayerTurn();
+  log(`You steel yourself and prepare to unleash a ${player.meleeSkills[idx].name.toLowerCase()} against your foe.`);
+  setTimeout(() => {
+    log(`You focus, channeling your courage. Your roll: ${roll}.`);
+    setTimeout(() => {
+      if(roll===20){
+        // Crit double damage
+        const dmg = Math.floor(meleeDamage()*move.mult*2 * game.multiplier);
+        enemy.hp -= dmg;
+        flashLog(`With heroic might, you land a critical blow! ${enemy.name} reels as you deal ${dmg} damage.`, 'good');
+      } else if(roll===1){
+        flashLog(`Your weapon slips from your grasp—a fumble! The enemy mocks your misfortune.`, 'muted');
+      } else if(roll >= move.threshold){
+        const dmg = Math.floor(meleeDamage()*move.mult * game.multiplier);
+        enemy.hp -= dmg;
+        flashLog(`Your attack strikes true! ${enemy.name} staggers, taking ${dmg} damage.`, 'good');
+      } else {
+        flashLog(`Your attack misses, whistling through empty air.`, 'muted');
+      }
+      renderEnemy();
+      if(enemy.hp<=0) return onWin();
+      setTimeout(() => { endPlayerTurn(); }, 900);
+    }, 900);
+  }, 900);
 }
 
 function onBlock(){
@@ -434,24 +446,28 @@ function onCast(type){
   player.spells--;
   const roll = d20();
   if(type==='heal') {
-    log('You cast Healing Touch.');
-    log(`Your roll: ${roll}.`);
-    let heal = 15 + player.spellPower;
-    if(roll===1){
-      flashLog('The healing fizzles!', 'muted');
-    } else if(roll===20){
-      heal = Math.floor(heal * 2 * game.multiplier);
-      player.hp = clamp(player.hp + heal, 0, player.maxHp);
-      flashLog(`Overchannel! You heal yourself for ${heal} HP.`, 'good');
-    } else if(roll>=10){
-      heal = Math.floor(heal * game.multiplier);
-      player.hp = clamp(player.hp + heal, 0, player.maxHp);
-      flashLog(`You heal yourself for ${heal} HP.`, 'good');
-    } else {
-      flashLog('The healing sputters short.', 'muted');
-    }
-    renderStats();
-    endPlayerTurn();
+    log('You whisper an incantation, summoning radiant energy for Healing Touch.');
+    setTimeout(() => {
+      log(`A gentle light surrounds you. Your roll: ${roll}.`);
+      setTimeout(() => {
+        let heal = 15 + player.spellPower;
+        if(roll===1){
+          flashLog('The healing fizzles, the magic slipping through your fingers.', 'muted');
+        } else if(roll===20){
+          heal = Math.floor(heal * 2 * game.multiplier);
+          player.hp = clamp(player.hp + heal, 0, player.maxHp);
+          flashLog(`A surge of divine power! You are bathed in light and heal for ${heal} HP.`, 'good');
+        } else if(roll>=10){
+          heal = Math.floor(heal * game.multiplier);
+          player.hp = clamp(player.hp + heal, 0, player.maxHp);
+          flashLog(`Warmth floods your veins. You heal for ${heal} HP.`, 'good');
+        } else {
+          flashLog('The healing sputters, barely mending your wounds.', 'muted');
+        }
+        renderStats();
+        setTimeout(() => { endPlayerTurn(); }, 900);
+      }, 900);
+    }, 900);
     return;
   }
   // ...existing code for other spells...
@@ -459,24 +475,32 @@ function onCast(type){
                     (type==='ice')? 7 + player.spellPower :
                     12 + player.spellPower; // lightning
   const name = (type==='fireball')?'Fireball':'Ice Shard' && type==='ice'?'Ice Shard':'Lightning Bolt';
-  log(`You cast ${type==='fireball'?'Fireball':type==='ice'?'Ice Shard':'Lightning Bolt'}.`);
-  log(`Your roll: ${roll}.`);
-  if(roll===1){
-    flashLog('The spell fizzles!', 'muted');
-  } else if(roll===20){
-    const dmg = Math.floor(baseSpell*2 * game.multiplier);
-    enemy.hp -= dmg;
-    flashLog(`Overchannel! ${enemy.name} takes ${dmg}.`, 'good');
-  } else if(roll>=10){
-    const dmg = Math.floor(baseSpell * game.multiplier);
-    enemy.hp -= dmg;
-    flashLog(`${enemy.name} is blasted for ${dmg}.`, 'good');
-  } else {
-    flashLog('The magic sputters short.', 'muted');
-  }
-  renderEnemy();
-  if(enemy.hp<=0) return onWin();
-  endPlayerTurn();
+  let spellDesc = '';
+  if(type==='fireball') spellDesc = 'You conjure a roaring Fireball, flames swirling in your palm.';
+  else if(type==='ice') spellDesc = 'You summon shards of glacial ice, the air crackling with frost.';
+  else spellDesc = 'You call forth a Lightning Bolt, electricity dancing along your fingertips.';
+  log(spellDesc);
+  setTimeout(() => {
+    log(`Arcane power surges. Your roll: ${roll}.`);
+    setTimeout(() => {
+      if(roll===1){
+        flashLog('The spell fizzles, magic dissipating into the ether.', 'muted');
+      } else if(roll===20){
+        const dmg = Math.floor(baseSpell*2 * game.multiplier);
+        enemy.hp -= dmg;
+        flashLog(`Raw power explodes forth! ${enemy.name} is engulfed and takes ${dmg} damage.`, 'good');
+      } else if(roll>=10){
+        const dmg = Math.floor(baseSpell * game.multiplier);
+        enemy.hp -= dmg;
+        flashLog(`Your spell strikes true! ${enemy.name} is blasted for ${dmg} damage.`, 'good');
+      } else {
+        flashLog('The magic sputters, barely harming your foe.', 'muted');
+      }
+      renderEnemy();
+      if(enemy.hp<=0) return onWin();
+      setTimeout(() => { endPlayerTurn(); }, 900);
+    }, 900);
+  }, 900);
 }
 
 function useItem(i){
@@ -528,30 +552,29 @@ function enemyTurn(){
   const roll = d20();
   const move = enemy.moves[Math.random()*enemy.moves.length|0];
   log(`${enemy.name} ${move}.`);
-  log(`Enemy roll: ${roll}.`);
-
-  let dmg = enemy.damage;
-  if(player.blocked){ dmg = Math.floor(dmg/2); player.blocked = false; }
-  if(player.buffs.shield>0) dmg = Math.floor(dmg/2);
-
-  if(roll===1){
-    flashLog(`${enemy.name} fumbles and misses.`, 'muted');
-  } else if(roll===20){
-    const hit = dmg*2;
-    player.hp = clamp(player.hp - hit, 0, player.maxHp);
-    flashLog(`Critical! You take ${hit}.`, 'bad');
-  } else if(roll>=10){
-    player.hp = clamp(player.hp - dmg, 0, player.maxHp);
-  flashLog(`You were hit for ${dmg} HP.`, 'bad');
-  } else {
-    flashLog('It misses you!', 'muted');
-  }
-
-  renderStats();
-  if(player.hp<=0) return gameOver();
-
-  // back to player
-  battleControls();
+  setTimeout(() => {
+    log(`Enemy roll: ${roll}.`);
+    setTimeout(() => {
+      let dmg = enemy.damage;
+      if(player.blocked){ dmg = Math.floor(dmg/2); player.blocked = false; }
+      if(player.buffs.shield>0) dmg = Math.floor(dmg/2);
+      if(roll===1){
+        flashLog(`${enemy.name} fumbles and misses.`, 'muted');
+      } else if(roll===20){
+        const hit = dmg*2;
+        player.hp = clamp(player.hp - hit, 0, player.maxHp);
+        flashLog(`Critical! You take ${hit}.`, 'bad');
+      } else if(roll>=10){
+        player.hp = clamp(player.hp - dmg, 0, player.maxHp);
+        flashLog(`You were hit for ${dmg} HP.`, 'bad');
+      } else {
+        flashLog('It misses you!', 'muted');
+      }
+      renderStats();
+      if(player.hp<=0) return gameOver();
+      setTimeout(() => { battleControls(); }, 900);
+    }, 900);
+  }, 900);
 }
 
 /* =============================
@@ -561,28 +584,29 @@ function onWin(){
   const xp = Math.floor(enemy.xp * game.multiplier);
   const gold = Math.floor(enemy.gold * game.multiplier);
   flashLog(`You defeated the ${enemy.name}!`, 'good');
-  log(`Rewards: +${xp} XP, +${gold} gold.`, 'info');
-
-  player.xp += xp;
-  player.gold += gold;
-  game.inBattle = false;
-  enemy = null;
-  renderEnemy();
-
-  // Level-up check with steeper curve
-  // XP need grows fast: level^2 * 30
-  while (player.xp >= xpNeeded(player.level+1)) {
-    player.level++;
-    player.skillPoints++;
-    player.maxHp += 6;
-    player.hp = player.maxHp;
-    player.baseDamage += 1;
-    flashLog(`LEVEL UP! Level ${player.level}. +1 skill point.`, 'good');
-  }
-
-  encountersSinceCamp++;
-  renderStats();
-  afterVictoryChoices();
+  setTimeout(() => {
+    log(`Your rewards from this encounter are: +${xp} XP, +${gold} gold.`, 'info');
+    player.xp += xp;
+    player.gold += gold;
+    game.inBattle = false;
+    enemy = null;
+    renderEnemy();
+    // Level-up check with steeper curve
+    // XP need grows fast: level^2 * 30
+    setTimeout(() => {
+      while (player.xp >= xpNeeded(player.level+1)) {
+        player.level++;
+        player.skillPoints++;
+        player.maxHp += 6;
+        player.hp = player.maxHp;
+        player.baseDamage += 1;
+        flashLog(`LEVEL UP! Level ${player.level}. +1 skill point.`, 'good');
+      }
+      encountersSinceCamp++;
+      renderStats();
+      afterVictoryChoices();
+    }, 900);
+  }, 900);
 }
 
 function xpNeeded(targetLevel){
@@ -692,36 +716,30 @@ function micStop(){ if(rec && recActive){ rec.stop(); } }
 
 function speak(text){
   if(!('speechSynthesis' in window)) return;
-  let emotion = 'neutral';
-  // Try to infer emotion from text
-  if (/critical|level up|victory|defeated|find|soothes|escape|overchannel|blasted/i.test(text)) emotion = 'excited';
-  else if (/fumble|fail|fall|ends|snare|misses|sputters|not enough|no spells|no skill/i.test(text)) emotion = 'sad';
-  else if (/hit|attack|danger|risk|block|guard|raise|brutal|heavy/i.test(text)) emotion = 'angry';
-  else if (/info|buff|shield|quaff|drink|sip|camp|rest/i.test(text)) emotion = 'calm';
-
+  // emotion param now always used
   const utter = new SpeechSynthesisUtterance(text);
   const voices = window.speechSynthesis.getVoices();
   utter.voice = voices.find(v => v.name.includes("Natural") || v.name.includes("Aria") || v.name.includes("Google US English")) || voices[0];
   // Dynamic pitch/rate/volume
   if (emotion === "excited") {
     utter.pitch = 1.5;
-    utter.rate = 1.1;
+    utter.rate = 0.85;
     utter.volume = 1;
   } else if (emotion === "sad") {
     utter.pitch = 0.8;
-    utter.rate = 0.85;
+    utter.rate = 0.7;
     utter.volume = 0.8;
   } else if (emotion === "angry") {
     utter.pitch = 0.9;
-    utter.rate = 1.2;
+    utter.rate = 0.9;
     utter.volume = 1;
   } else if (emotion === "calm") {
     utter.pitch = 1.1;
-    utter.rate = 0.95;
+    utter.rate = 0.8;
     utter.volume = 0.9;
   } else {
     utter.pitch = 1.2;
-    utter.rate = 0.95;
+    utter.rate = 0.8;
     utter.volume = 1;
   }
   window.speechSynthesis.speak(utter);
