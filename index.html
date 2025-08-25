@@ -235,22 +235,118 @@ function onAdventure(){
 }
 
 function randomEvent(){
-  const roll = Math.random();
-  if(roll < 0.34){
-    const gold = (5 + (Math.random()*6|0)) * game.multiplier;
-    const gain = Math.floor(gold);
-    player.gold += gain;
-    flashLog(`You find a hidden stash. +${gain} gold.`, 'good');
-  } else if(roll < 0.67){
-    const dmg = 5 + (Math.random()*6|0);
-    player.hp = clamp(player.hp - dmg, 0, player.maxHp);
-    flashLog(`A snare trap snaps your leg! -${dmg} HP.`, 'bad');
-    if(player.hp<=0) return gameOver();
-  } else {
-    const heal = 10 + (Math.random()*6|0);
-    player.hp = clamp(player.hp + heal, 0, player.maxHp);
-    flashLog(`A wayside shrine soothes your wounds. +${heal} HP.`, 'good');
-  }
+  const events = [
+    // Gold/finds
+    () => {
+      const gold = (5 + (Math.random()*6|0)) * game.multiplier;
+      const gain = Math.floor(gold);
+      player.gold += gain;
+      flashLog(`You find a hidden stash. +${gain} gold.`, 'good');
+    },
+    // Trap
+    () => {
+      const dmg = 5 + (Math.random()*6|0);
+      player.hp = clamp(player.hp - dmg, 0, player.maxHp);
+      flashLog(`A snare trap snaps your leg! -${dmg} HP.`, 'bad');
+      if(player.hp<=0) return gameOver();
+    },
+    // Shrine
+    () => {
+      const heal = 10 + (Math.random()*6|0);
+      player.hp = clamp(player.hp + heal, 0, player.maxHp);
+      flashLog(`A wayside shrine soothes your wounds. +${heal} HP.`, 'good');
+    },
+    // D&D inspired events
+    // Magical portal
+    () => {
+      flashLog('A shimmering portal appears. You step through and feel time shift.', 'info');
+      player.xp += 5;
+    },
+    // Mimic chest
+    () => {
+      const dmg = 8 + (Math.random()*4|0);
+      player.hp = clamp(player.hp - dmg, 0, player.maxHp);
+      flashLog('A treasure chest bites you! It was a mimic. -'+dmg+' HP.', 'bad');
+      if(player.hp<=0) return gameOver();
+    },
+    // Wandering merchant
+    () => {
+      const gold = 10;
+      if(player.gold>=gold){
+        player.gold -= gold;
+        player.inventory[0].count += 1;
+        flashLog('A wandering merchant sells you a health potion for 10 gold.', 'info');
+      } else {
+        flashLog('A merchant offers a potion, but you lack the gold.', 'muted');
+      }
+    },
+    // Ancient rune
+    () => {
+      player.spellPower += 1;
+      flashLog('You discover an ancient rune. Spell Power +1.', 'good');
+    },
+    // Pitfall
+    () => {
+      const dmg = 12;
+      player.hp = clamp(player.hp - dmg, 0, player.maxHp);
+      flashLog('You fall into a pit! -'+dmg+' HP.', 'bad');
+      if(player.hp<=0) return gameOver();
+    },
+    // Blessing
+    () => {
+      player.buffs.strength += 2;
+      flashLog('A passing cleric blesses you. Strength buff +2 turns.', 'good');
+    },
+    // Cursed idol
+    () => {
+      player.buffs.shield = 0;
+      flashLog('You touch a cursed idol. Your shield buff is removed!', 'bad');
+    },
+    // Riddle
+    () => {
+      flashLog('A sphinx asks you a riddle. You ponder, but gain wisdom. XP +3.', 'info');
+      player.xp += 3;
+    },
+    // Magic surge
+    () => {
+      player.spells = clamp(player.spells + 1, 0, player.maxSpells);
+      flashLog('A surge of magic restores a spell charge.', 'good');
+    },
+    // Lost map
+    () => {
+      player.xp += 2;
+      flashLog('You find a lost map. XP +2.', 'info');
+    },
+    // Poison gas
+    () => {
+      const dmg = 7;
+      player.hp = clamp(player.hp - dmg, 0, player.maxHp);
+      flashLog('A cloud of poison gas envelops you. -'+dmg+' HP.', 'bad');
+      if(player.hp<=0) return gameOver();
+    },
+    // Lucky coin
+    () => {
+      player.gold += 5;
+      flashLog('You find a lucky coin. +5 gold.', 'good');
+    },
+    // Enchanted spring
+    () => {
+      player.hp = clamp(player.hp + 8, 0, player.maxHp);
+      flashLog('You drink from an enchanted spring. +8 HP.', 'good');
+    },
+    // Goblin prank
+    () => {
+      player.gold = Math.max(0, player.gold-3);
+      flashLog('A goblin steals 3 gold from your pouch.', 'bad');
+    },
+    // Mysterious fog
+    () => {
+      flashLog('A mysterious fog confuses you. Nothing happens.', 'muted');
+    },
+  ];
+  // Pick a random event
+  const event = events[Math.floor(Math.random()*events.length)];
+  event();
 }
 
 /* =============================
@@ -279,6 +375,7 @@ function spellMenu(){
     btn('Fireball', ()=>onCast('fireball'), {colorClass:'good'}),
     btn('Ice Shard', ()=>onCast('ice'), {colorClass:'info'}),
     btn('Lightning', ()=>onCast('lightning'), {colorClass:'accent'}),
+    btn('Healing Touch', ()=>onCast('heal'), {colorClass:'info'}),
     btn('Back', battleControls, {className:'small', colorClass:'muted'})
   );
 }
@@ -336,6 +433,28 @@ function onCast(type){
   if(!game.inBattle || player.spells<=0) { flashLog('No spells!', 'muted'); return; }
   player.spells--;
   const roll = d20();
+  if(type==='heal') {
+    log('You cast Healing Touch.');
+    log(`Your roll: ${roll}.`);
+    let heal = 15 + player.spellPower;
+    if(roll===1){
+      flashLog('The healing fizzles!', 'muted');
+    } else if(roll===20){
+      heal = Math.floor(heal * 2 * game.multiplier);
+      player.hp = clamp(player.hp + heal, 0, player.maxHp);
+      flashLog(`Overchannel! You heal yourself for ${heal} HP.`, 'good');
+    } else if(roll>=10){
+      heal = Math.floor(heal * game.multiplier);
+      player.hp = clamp(player.hp + heal, 0, player.maxHp);
+      flashLog(`You heal yourself for ${heal} HP.`, 'good');
+    } else {
+      flashLog('The healing sputters short.', 'muted');
+    }
+    renderStats();
+    endPlayerTurn();
+    return;
+  }
+  // ...existing code for other spells...
   const baseSpell = (type==='fireball')? 10 + player.spellPower :
                     (type==='ice')? 7 + player.spellPower :
                     12 + player.spellPower; // lightning
@@ -423,7 +542,7 @@ function enemyTurn(){
     flashLog(`Critical! You take ${hit}.`, 'bad');
   } else if(roll>=10){
     player.hp = clamp(player.hp - dmg, 0, player.maxHp);
-    flashLog(`You are hit for ${dmg}.`, 'bad');
+  flashLog(`You were hit for ${dmg} HP.`, 'bad');
   } else {
     flashLog('It misses you!', 'muted');
   }
@@ -555,15 +674,14 @@ function micStart(){
   rec.interimResults = false;
   rec.continuous = true;
 
-  rec.onstart = ()=>{ recActive = true; elMicStat.textContent = 'Mic: listening…'; log('[MIC] started','muted'); };
-  rec.onend   = ()=>{ recActive = false; elMicStat.textContent = 'Mic: stopped'; log('[MIC] stopped','muted'); };
+  rec.onstart = ()=>{ recActive = true; elMicStat.textContent = 'Mic: listening…'; };
+  rec.onend   = ()=>{ recActive = false; elMicStat.textContent = 'Mic: stopped'; };
   rec.onerror = (e)=>{ log(`[MIC ERROR] ${e.error||e.message}`,'bad'); };
 
   rec.onresult = (evt)=>{
     for(let i=evt.resultIndex;i<evt.results.length;i++){
       if(evt.results[i].isFinal){
         const transcript = evt.results[i][0].transcript.trim().toLowerCase();
-        log(`[MIC] “${transcript}”`,'muted');
         handleVoice(transcript);
       }
     }
@@ -574,13 +692,38 @@ function micStop(){ if(rec && recActive){ rec.stop(); } }
 
 function speak(text){
   if(!('speechSynthesis' in window)) return;
+  let emotion = 'neutral';
+  // Try to infer emotion from text
+  if (/critical|level up|victory|defeated|find|soothes|escape|overchannel|blasted/i.test(text)) emotion = 'excited';
+  else if (/fumble|fail|fall|ends|snare|misses|sputters|not enough|no spells|no skill/i.test(text)) emotion = 'sad';
+  else if (/hit|attack|danger|risk|block|guard|raise|brutal|heavy/i.test(text)) emotion = 'angry';
+  else if (/info|buff|shield|quaff|drink|sip|camp|rest/i.test(text)) emotion = 'calm';
+
   const utter = new SpeechSynthesisUtterance(text);
   const voices = window.speechSynthesis.getVoices();
-  // Try to pick a natural-sounding voice (customize name as needed)
-  utter.voice = voices.find(v => v.name.includes("Aria") || v.name.includes("Google US English")) || voices[0];
-  utter.rate = 0.95; // slower, more natural
-  utter.pitch = 1.2; // higher pitch for emotion
-  utter.volume = 1;
+  utter.voice = voices.find(v => v.name.includes("Natural") || v.name.includes("Aria") || v.name.includes("Google US English")) || voices[0];
+  // Dynamic pitch/rate/volume
+  if (emotion === "excited") {
+    utter.pitch = 1.5;
+    utter.rate = 1.1;
+    utter.volume = 1;
+  } else if (emotion === "sad") {
+    utter.pitch = 0.8;
+    utter.rate = 0.85;
+    utter.volume = 0.8;
+  } else if (emotion === "angry") {
+    utter.pitch = 0.9;
+    utter.rate = 1.2;
+    utter.volume = 1;
+  } else if (emotion === "calm") {
+    utter.pitch = 1.1;
+    utter.rate = 0.95;
+    utter.volume = 0.9;
+  } else {
+    utter.pitch = 1.2;
+    utter.rate = 0.95;
+    utter.volume = 1;
+  }
   window.speechSynthesis.speak(utter);
 }
 
@@ -589,21 +732,32 @@ function handleVoice(t){
   if(/adventure|fight|venture/.test(t) && !game.inBattle) return onAdventure();
   if(/camp|rest|return/.test(t) && !game.inBattle) return showCamp();
   if(/skill/.test(t) && !game.inBattle) return onSkillMenu();
-  if(/inventory|bag|items/.test(t) && game.inBattle) return inventoryMenu();
+  if(/inventory|bag|items|open inventory/.test(t) && game.inBattle) return inventoryMenu();
   if(/run|flee|escape/.test(t) && game.inBattle) return onRun();
   if(/block|guard|defend/.test(t) && game.inBattle) return onBlock();
   if(/attack/.test(t) && game.inBattle) return meleeMenu();
+  if(/spells|spell/.test(t) && game.inBattle) return spellMenu();
 
-  // melee
+  // melee & spells
   if(game.inBattle){
+    // Melee
     if(/quick/i.test(t))  return onMelee(0);
     if(/precise|stab/i.test(t)) return onMelee(1);
     if(/heavy|strike/i.test(t)) return onMelee(2);
+    // Spells
     if(/fireball/.test(t)) return onCast('fireball');
     if(/ice/.test(t)) return onCast('ice');
     if(/lightning|bolt/.test(t)) return onCast('lightning');
+    if(/healing touch|heal spell|heal/i.test(t)) return onCast('heal');
 
-    if(/health potion|heal potion|potion/.test(t)){
+    // Use item by name
+    const useMatch = t.match(/use (.+)/i);
+    if(useMatch) {
+      const itemName = useMatch[1].trim().toLowerCase();
+      const idx = player.inventory.findIndex(it => it.name.toLowerCase().includes(itemName) && it.count > 0);
+      if(idx > -1) return useItem(idx);
+      else flashLog(`No usable item found for '${itemName}'.`, 'muted');
+    } else if(/health potion|heal potion|potion/.test(t)){
       const idx = player.inventory.findIndex(it=>it.name.toLowerCase().includes('health') && it.count>0);
       if(idx>-1) return useItem(idx);
     }
