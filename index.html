@@ -726,8 +726,8 @@ function speak(text, emotion) {
   utter.voice = voices.find(v => v.name.includes("Natural") || v.name.includes("Aria") || v.name.includes("Google US English")) || voices[0];
   // Dynamic pitch/rate/volume
   if (emotion === "excited") {
-    utter.pitch = 1.5;
-    utter.rate = 0.85;
+    utter.pitch = .8;
+    utter.rate = 1.2;
     utter.volume = 1;
   } else if (emotion === "sad") {
     utter.pitch = 0.8;
